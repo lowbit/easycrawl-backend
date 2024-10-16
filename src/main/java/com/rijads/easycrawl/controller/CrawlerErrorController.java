@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.security.Principal;
 
 @RestController
-@RequestMapping(value = "/api/crawler-error")
+@RequestMapping(value = "/crawler-error")
 public class CrawlerErrorController {
 
     @GetMapping

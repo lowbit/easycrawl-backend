@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @RestController
-@RequestMapping(value = "/api/crawler-raw")
+@RequestMapping(value = "/crawler-raw")
 public class CrawlRawController {
     private final CrawlerRawService service;
 

@@ -24,13 +24,13 @@ public class CrawlerWebsite {
     @Column(nullable = false)
     private LocalDateTime created;
 
-    @Column(nullable = false, length = 100)
+    @Column(nullable = false, length = 100, name = "created_by")
     private String createdBy;
 
     @Column
     private LocalDateTime modified;
 
-    @Column(length = 100)
+    @Column(length = 100, name = "modified_by")
     private String modifiedBy;
 
     public String getCode() {
