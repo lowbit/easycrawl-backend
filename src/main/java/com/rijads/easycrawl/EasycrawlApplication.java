@@ -9,8 +9,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 @SpringBootApplication
 public class EasycrawlApplication {
 
-	public static void main(String[] args) {
-		SpringApplication.run(EasycrawlApplication.class, args);
-	}
-
+    public static void main(String[] args) {
+        SpringApplication.run(EasycrawlApplication.class, args);
+    }
 }

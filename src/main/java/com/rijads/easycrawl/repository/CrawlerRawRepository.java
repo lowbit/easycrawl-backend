@@ -1,6 +1,7 @@
 package com.rijads.easycrawl.repository;
 
 import com.rijads.easycrawl.model.CrawlerRaw;
+
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.PagingAndSortingRepository;

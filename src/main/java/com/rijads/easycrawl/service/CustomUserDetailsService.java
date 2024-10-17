@@ -35,13 +35,16 @@ public class CustomUserDetailsService implements UserDetailsService {
                         .map(SimpleGrantedAuthority::new)
                         .collect(Collectors.toSet()));
     }
-    public User saveUser (User user) {
+
+    public User saveUser(User user) {
         return repository.save(user);
     }
-    public User findByUsername(String username){
+
+    public User findByUsername(String username) {
         return repository.findByUsername(username);
     }
-    public User findByEmail(String email){
+
+    public User findByEmail(String email) {
         return repository.findByEmail(email);
     }
 }

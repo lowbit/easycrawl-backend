@@ -9,7 +9,7 @@ import jakarta.persistence.Table;
 @Table(name = "product_category", schema = "focak")
 public class ProductCategory {
     @Id
-    @Column(name = "code", length=30)
+    @Column(name = "code", length = 30)
     private String code;
 
     @Column(name = "name", nullable = false, length = 100)

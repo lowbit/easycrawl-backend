@@ -11,7 +11,7 @@ import java.security.Principal;
 public class CrawlerErrorController {
 
     @GetMapping
-    public String getAllCrawlErrors(Principal principal){
-        return "hi "+principal.getName();
+    public String getAllCrawlErrors(Principal principal) {
+        return "hi " + principal.getName();
     }
 }

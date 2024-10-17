@@ -72,11 +72,13 @@ public class User {
 
     @Column(name = "created", nullable = false)
     private LocalDateTime created;
+
     @Column(name = "created_by", nullable = false)
     private String createdBy;
 
     @Column(name = "updated")
     private LocalDateTime updated;
+
     @Column(name = "updated_by")
     private String updatedBy;
 

@@ -2,6 +2,7 @@ package com.rijads.easycrawl.controller;
 
 import com.rijads.easycrawl.model.CrawlerRaw;
 import com.rijads.easycrawl.service.CrawlerRawService;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
@@ -15,8 +16,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-
 @RestController
 @RequestMapping(value = "/crawler-raw")
 public class CrawlRawController {
@@ -27,11 +26,12 @@ public class CrawlRawController {
     }
 
     @GetMapping
-    public Page<CrawlerRaw> getAllCrawlRaws(@RequestParam(required = false) String configCode,
-                                            @RequestParam(required = false) String title,
-                                            @RequestParam(required = false) Double minPrice,
-                                            @RequestParam(required = false) Double maxPrice,
-                                            Pageable pageable) {
+    public Page<CrawlerRaw> getAllCrawlRaws(
+            @RequestParam(required = false) String configCode,
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) Double minPrice,
+            @RequestParam(required = false) Double maxPrice,
+            Pageable pageable) {
         return service.getAllCrawlerRaws(configCode, title, minPrice, maxPrice, pageable);
     }
 
@@ -41,18 +41,21 @@ public class CrawlRawController {
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
+
     @PostMapping
     public CrawlerRaw createCrawlerRaw(@RequestBody CrawlerRaw crawlerRaw) {
         return service.saveCrawlerRaw(crawlerRaw);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<CrawlerRaw> updateCrawlerRaw(@PathVariable Integer id, @RequestBody CrawlerRaw crawlerRaw) {
+    public ResponseEntity<CrawlerRaw> updateCrawlerRaw(
+            @PathVariable Integer id, @RequestBody CrawlerRaw crawlerRaw) {
         return service.getCrawlerRawById(id)
-                .map(existingCrawlerRaw -> {
-                    crawlerRaw.setId(id);
-                    return ResponseEntity.ok(service.saveCrawlerRaw(crawlerRaw));
-                })
+                .map(
+                        existingCrawlerRaw -> {
+                            crawlerRaw.setId(id);
+                            return ResponseEntity.ok(service.saveCrawlerRaw(crawlerRaw));
+                        })
                 .orElse(ResponseEntity.notFound().build());
     }
 
