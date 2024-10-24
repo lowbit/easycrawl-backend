@@ -5,6 +5,8 @@ import com.rijads.easycrawl.dto.RegistrationRequest;
 import com.rijads.easycrawl.dto.UserResponse;
 import com.rijads.easycrawl.model.User;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -22,6 +24,7 @@ import java.util.Set;
 @Service
 public class AuthService {
 
+    private static final Logger LOG = LoggerFactory.getLogger(AuthService.class);
     private final CustomUserDetailsService customUserDetailsService;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
