@@ -5,6 +5,7 @@ import com.rijads.easycrawl.service.CrawlerRawService;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,6 +16,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.time.LocalDateTime;
 
 @RestController
 @RequestMapping(value = "/crawler-raw")
@@ -31,8 +34,13 @@ public class CrawlRawController {
             @RequestParam(required = false) String title,
             @RequestParam(required = false) Double minPrice,
             @RequestParam(required = false) Double maxPrice,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+                    LocalDateTime createdFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+                    LocalDateTime createdTo,
             Pageable pageable) {
-        return service.getAllCrawlerRaws(configCode, title, minPrice, maxPrice, pageable);
+        return service.getAllCrawlerRaws(
+                configCode, title, minPrice, maxPrice, createdFrom, createdTo, pageable);
     }
 
     @GetMapping("/{id}")

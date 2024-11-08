@@ -4,6 +4,8 @@ import com.rijads.easycrawl.model.CrawlerRaw;
 
 import org.springframework.data.jpa.domain.Specification;
 
+import java.time.LocalDateTime;
+
 public class CrawlerRawSpecification {
     public static Specification<CrawlerRaw> hasConfigCode(String configCode) {
         return (root, query, criteriaBuilder) ->
@@ -29,6 +31,15 @@ public class CrawlerRawSpecification {
             if (maxPrice == null)
                 return criteriaBuilder.greaterThanOrEqualTo(root.get("price"), minPrice);
             return criteriaBuilder.between(root.get("price"), minPrice, maxPrice);
+        };
+    }
+
+    public static Specification<CrawlerRaw> createdBetween(LocalDateTime from, LocalDateTime to) {
+        return (root, query, criteriaBuilder) -> {
+            if (from == null && to == null) return null;
+            if (from == null) return criteriaBuilder.lessThanOrEqualTo(root.get("created"), to);
+            if (to == null) return criteriaBuilder.greaterThanOrEqualTo(root.get("created"), from);
+            return criteriaBuilder.between(root.get("created"), from, to);
         };
     }
 }

@@ -9,6 +9,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 @Service
@@ -20,11 +21,18 @@ public class CrawlerRawService {
     }
 
     public Page<CrawlerRaw> getAllCrawlerRaws(
-            String configCode, String title, Double minPrice, Double maxPrice, Pageable pageable) {
+            String configCode,
+            String title,
+            Double minPrice,
+            Double maxPrice,
+            LocalDateTime createdFrom,
+            LocalDateTime createdTo,
+            Pageable pageable) {
         Specification<CrawlerRaw> spec =
                 Specification.where(CrawlerRawSpecification.hasConfigCode(configCode))
                         .and(CrawlerRawSpecification.titleContains(title))
-                        .and(CrawlerRawSpecification.priceBetween(minPrice, maxPrice));
+                        .and(CrawlerRawSpecification.priceBetween(minPrice, maxPrice))
+                        .and(CrawlerRawSpecification.createdBetween(createdFrom, createdTo));
         return repository.findAll(spec, pageable);
     }
 
