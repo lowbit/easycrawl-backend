@@ -1,6 +1,7 @@
 package com.rijads.easycrawl.controller;
 
 import com.rijads.easycrawl.dto.CrawlerConfigDTO;
+import com.rijads.easycrawl.dto.CrawlerWebsiteDropdownDTO;
 import com.rijads.easycrawl.service.CrawlerConfigService;
 
 import org.springframework.data.domain.Page;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @RestController
 @RequestMapping(value = "/crawler-config")
@@ -32,5 +34,10 @@ public class CrawlerConfigController {
                     final LocalDateTime createdTo,
             final Pageable pageable) {
         return service.getAllCrawlerConfigs(website, category, createdFrom, createdTo, pageable);
+    }
+
+    @GetMapping(value = "/crawler-website-dropdown")
+    public List<CrawlerWebsiteDropdownDTO> getAllWebsitesDropdown() {
+        return service.getAllWebsitesDropdown();
     }
 }
