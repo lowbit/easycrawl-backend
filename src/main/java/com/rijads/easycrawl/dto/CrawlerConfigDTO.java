@@ -4,8 +4,8 @@ import java.time.LocalDateTime;
 
 public class CrawlerConfigDTO {
     private String code;
-    private CrawlerWebsiteDTO crawlerWebsite;
-    private ProductCategoryDTO productCategory;
+    private String crawlerWebsite;
+    private String productCategory;
     private String startUrl;
     private String allItemsSel;
     private String titleSel;
@@ -36,19 +36,19 @@ public class CrawlerConfigDTO {
         this.code = code;
     }
 
-    public CrawlerWebsiteDTO getCrawlerWebsite() {
+    public String getCrawlerWebsite() {
         return crawlerWebsite;
     }
 
-    public void setCrawlerWebsite(final CrawlerWebsiteDTO crawlerWebsite) {
+    public void setCrawlerWebsite(final String crawlerWebsite) {
         this.crawlerWebsite = crawlerWebsite;
     }
 
-    public ProductCategoryDTO getProductCategory() {
+    public String getProductCategory() {
         return productCategory;
     }
 
-    public void setProductCategory(final ProductCategoryDTO productCategory) {
+    public void setProductCategory(final String productCategory) {
         this.productCategory = productCategory;
     }
 

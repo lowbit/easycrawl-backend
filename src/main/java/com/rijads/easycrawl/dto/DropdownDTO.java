@@ -1,6 +1,6 @@
 package com.rijads.easycrawl.dto;
 
-public class CrawlerWebsiteDropdownDTO {
+public class DropdownDTO {
     private String name;
     private String code;
 
