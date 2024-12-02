@@ -9,12 +9,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -49,6 +44,10 @@ public class CrawlerConfigController {
     public List<DropdownDTO> getAllCategoriesDropdown() {
         return service.getAllCategoriesDropdown();
     }
+    @GetMapping(value = "/crawler-config-dropdown")
+    public List<DropdownDTO> getAllCrawlerConfigsByWebsiteCodeDropdown( @RequestParam final String websiteCode) {
+        return service.getAllCrawlerConfigsDropdown(websiteCode);
+    }
 
     @PostMapping(value = "/product-category")
     public ResponseEntity<DropdownDTO> addCategory(@RequestBody DropdownDTO request) {
@@ -64,5 +63,21 @@ public class CrawlerConfigController {
     public ResponseEntity<CrawlerConfigDTO> addCrawlerConfig(
             @RequestBody CrawlerConfigDTO request) {
         return service.addCrawlerConfig(request);
+    }
+
+    @PutMapping
+    public ResponseEntity<CrawlerConfigDTO> editCrawlerConfig(
+            @RequestParam final String code, @RequestBody CrawlerConfigDTO request) {
+        return service.editCrawlerConfig(code, request);
+    }
+
+    @DeleteMapping
+    public ResponseEntity<Void> deleteCrawlerConfig(@RequestParam final String code) {
+        return service.deleteCrawlerConfig(code);
+    }
+
+    @DeleteMapping("/bulk")
+    public ResponseEntity<Void> deleteCrawlerConfigs(@RequestBody final List<String> codes) {
+        return service.deleteCrawlerConfigs(codes);
     }
 }

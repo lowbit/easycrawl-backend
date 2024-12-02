@@ -12,7 +12,7 @@ import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "crawler_error", schema = "focak")
+@Table(name = "crawler_error", schema = "public")
 public class CrawlerError {
 
     @Id

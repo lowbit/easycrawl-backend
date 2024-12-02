@@ -11,7 +11,7 @@ import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "crawler_config", schema = "focak")
+@Table(name = "crawler_config", schema = "public")
 public class CrawlerConfig {
 
     @Id

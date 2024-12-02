@@ -6,7 +6,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "product_category", schema = "public")
+@Table(name = "product_category", schema = "focak")
 public class ProductCategory {
     @Id
     @Column(name = "code", length = 30)

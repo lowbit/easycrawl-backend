@@ -13,7 +13,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "crawler_raw", schema = "focak")
+@Table(name = "crawler_raw", schema = "public")
 public class CrawlerRaw {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

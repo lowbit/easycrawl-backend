@@ -17,12 +17,15 @@ import com.rijads.easycrawl.specification.CrawlerConfigSpecification;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class CrawlerConfigService {
@@ -95,10 +98,69 @@ public class CrawlerConfigService {
     public ResponseEntity<CrawlerConfigDTO> addCrawlerConfig(final CrawlerConfigDTO request) {
         CrawlerConfig entity = mapper.toEntity(request);
         String code = request.getCrawlerWebsite() + '/' + request.getProductCategory();
+        if (repository.existsById(code)){
+            return new ResponseEntity<>(null, HttpStatus.CONFLICT);
+        }
         entity.setCode(code);
         entity.setCreated(LocalDateTime.now());
         entity.setCreatedBy(SecurityContextHolder.getContext().getAuthentication().getName());
         repository.save(entity);
         return ResponseEntity.ok(mapper.toDto(entity));
+    }
+
+
+    public ResponseEntity<CrawlerConfigDTO> editCrawlerConfig(
+            final String code, final CrawlerConfigDTO request) {
+        CrawlerConfig entity = repository.findById(code).orElse(null);
+        if (entity != null) {
+            entity = mapper.toEntity(request);
+            entity.setModified(LocalDateTime.now());
+            entity.setModifiedBy(SecurityContextHolder.getContext().getAuthentication().getName());
+            repository.save(entity);
+            return ResponseEntity.ok(mapper.toDto(entity));
+        }
+        return ResponseEntity.notFound().build();
+    }
+
+    public ResponseEntity<Void> deleteCrawlerConfig(final String code) {
+        if (repository.existsById(code)) {
+            repository.deleteById(code);
+            return ResponseEntity.ok().build();
+        } else {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    public ResponseEntity<Void> deleteCrawlerConfigs(final List<String> codes) {
+        if (codes == null || codes.isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        Iterable<CrawlerConfig> existingEntities = repository.findAllById(codes);
+        List<CrawlerConfig> existingList = new ArrayList<>();
+        existingEntities.forEach(existingList::add);
+
+        if (existingList.size() == codes.size()) {
+            repository.deleteAllById(codes);
+            return ResponseEntity.ok().build();
+        } else {
+            List<String> existingCodes = existingList.stream().map(CrawlerConfig::getCode).toList();
+
+            List<String> missingCodes =
+                    codes.stream()
+                            .filter(code -> !existingCodes.contains(code))
+                            .collect(Collectors.toList());
+
+            return ResponseEntity.notFound()
+                    .header("Missing-Codes", String.join(",", missingCodes))
+                    .build();
+        }
+    }
+
+    public List<DropdownDTO> getAllCrawlerConfigsDropdown(String websiteCode) {
+        List<CrawlerConfig> entities = (List<CrawlerConfig>) repository.findAllByCrawlerWebsite_Code(websiteCode);
+        return entities.stream()
+                .map(entity -> dropdownMapper.crawlerConfigToDto(entity))
+                .toList();
     }
 }
