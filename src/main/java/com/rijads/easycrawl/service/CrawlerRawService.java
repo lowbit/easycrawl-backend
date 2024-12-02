@@ -1,5 +1,7 @@
 package com.rijads.easycrawl.service;
 
+import com.rijads.easycrawl.dto.CrawlerRawDTO;
+import com.rijads.easycrawl.mapper.CrawlerRawMapper;
 import com.rijads.easycrawl.model.CrawlerRaw;
 import com.rijads.easycrawl.repository.CrawlerRawRepository;
 import com.rijads.easycrawl.specification.CrawlerRawSpecification;
@@ -15,12 +17,14 @@ import java.util.Optional;
 @Service
 public class CrawlerRawService {
     private final CrawlerRawRepository repository;
+    private final CrawlerRawMapper mapper;
 
-    public CrawlerRawService(CrawlerRawRepository repository) {
+    public CrawlerRawService(CrawlerRawRepository repository, CrawlerRawMapper mapper) {
         this.repository = repository;
+        this.mapper = mapper;
     }
 
-    public Page<CrawlerRaw> getAllCrawlerRaws(
+    public Page<CrawlerRawDTO> getAllCrawlerRaws(
             String configCode,
             String title,
             Double minPrice,
@@ -33,15 +37,16 @@ public class CrawlerRawService {
                         .and(CrawlerRawSpecification.titleContains(title))
                         .and(CrawlerRawSpecification.priceBetween(minPrice, maxPrice))
                         .and(CrawlerRawSpecification.createdBetween(createdFrom, createdTo));
-        return repository.findAll(spec, pageable);
+        return repository.findAll(spec, pageable).map(mapper::toDto);
     }
 
-    public Optional<CrawlerRaw> getCrawlerRawById(Integer id) {
-        return repository.findById(id);
+    public Optional<CrawlerRawDTO> getCrawlerRawById(Integer id) {
+        return repository.findById(id).map(mapper::toDto);
     }
 
-    public CrawlerRaw saveCrawlerRaw(CrawlerRaw crawlerRaw) {
-        return repository.save(crawlerRaw);
+    public CrawlerRawDTO saveCrawlerRaw(CrawlerRawDTO crawlerRaw) {
+        CrawlerRaw res = repository.save(mapper.dtoToEntity(crawlerRaw));
+        return mapper.toDto(res);
     }
 
     public void deleteCrawlerRaw(Integer id) {

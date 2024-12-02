@@ -1,12 +1,8 @@
 package com.rijads.easycrawl.dto;
 
-import com.rijads.easycrawl.model.CrawlerConfig;
-import com.rijads.easycrawl.model.CrawlerWebsite;
-import jakarta.persistence.*;
-
 import java.time.LocalDateTime;
 
-public class CrawlerJobDto {
+public class CrawlerJobDTO {
     private Integer id;
     private String crawlerWebsiteCode;
     private String crawlerConfigCode;
@@ -18,6 +14,7 @@ public class CrawlerJobDto {
     private String createdBy;
     private LocalDateTime modified;
     private String modifiedBy;
+    private Boolean testRun;
 
     public Integer getId() {
         return id;
@@ -105,5 +102,13 @@ public class CrawlerJobDto {
 
     public void setCrawlerConfigCode(String crawlerConfigCode) {
         this.crawlerConfigCode = crawlerConfigCode;
+    }
+
+    public Boolean getTestRun() {
+        return testRun;
+    }
+
+    public void setTestRun(Boolean testRun) {
+        this.testRun = testRun;
     }
 }

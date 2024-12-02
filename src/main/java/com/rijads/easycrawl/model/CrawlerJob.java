@@ -51,6 +51,9 @@ public class CrawlerJob {
     @Column(name = "modified_by", length = 100)
     private String modifiedBy;
 
+    @Column(name = "test_run")
+    private Boolean testRun;
+
     public Integer getId() {
         return id;
     }
@@ -137,5 +140,13 @@ public class CrawlerJob {
 
     public void setModifiedBy(final String modifiedBy) {
         this.modifiedBy = modifiedBy;
+    }
+
+    public Boolean getTestRun() {
+        return testRun;
+    }
+
+    public void setTestRun(Boolean testRun) {
+        this.testRun = testRun;
     }
 }

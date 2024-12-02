@@ -1,13 +1,6 @@
 package com.rijads.easycrawl.model;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -46,6 +39,10 @@ public class CrawlerRaw {
     @Column(nullable = false)
     private LocalDateTime modified;
 
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(nullable = false, name="job_id")
+    private CrawlerJob job;
+
     @PrePersist
     protected void onCreate() {
         created = LocalDateTime.now();
@@ -63,6 +60,14 @@ public class CrawlerRaw {
 
     public void setId(final Integer id) {
         this.id = id;
+    }
+
+    public CrawlerJob getJob() {
+        return job;
+    }
+
+    public void setJob(CrawlerJob job) {
+        this.job = job;
     }
 
     public String getConfigCode() {

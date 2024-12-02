@@ -14,6 +14,7 @@ public class CrawlerRawDTO {
     private BigDecimal discount;
     private LocalDateTime created;
     private LocalDateTime modified;
+    private Integer jobId;
 
     public Integer getId() {
         return id;
@@ -21,6 +22,14 @@ public class CrawlerRawDTO {
 
     public void setId(final Integer id) {
         this.id = id;
+    }
+
+    public Integer getJobId() {
+        return jobId;
+    }
+
+    public void setJobId(Integer jobId) {
+        this.jobId = jobId;
     }
 
     public String getConfigCode() {

@@ -1,5 +1,6 @@
 package com.rijads.easycrawl.controller;
 
+import com.rijads.easycrawl.dto.CrawlerRawDTO;
 import com.rijads.easycrawl.model.CrawlerRaw;
 import com.rijads.easycrawl.service.CrawlerRawService;
 
@@ -29,7 +30,7 @@ public class CrawlRawController {
     }
 
     @GetMapping
-    public Page<CrawlerRaw> getAllCrawlRaws(
+    public Page<CrawlerRawDTO> getAllCrawlRaws(
             @RequestParam(required = false) String configCode,
             @RequestParam(required = false) String title,
             @RequestParam(required = false) Double minPrice,
@@ -44,20 +45,20 @@ public class CrawlRawController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<CrawlerRaw> getCrawlerRawById(@PathVariable Integer id) {
+    public ResponseEntity<CrawlerRawDTO> getCrawlerRawById(@PathVariable Integer id) {
         return service.getCrawlerRawById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping
-    public CrawlerRaw createCrawlerRaw(@RequestBody CrawlerRaw crawlerRaw) {
+    public CrawlerRawDTO createCrawlerRaw(@RequestBody CrawlerRawDTO crawlerRaw) {
         return service.saveCrawlerRaw(crawlerRaw);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<CrawlerRaw> updateCrawlerRaw(
-            @PathVariable Integer id, @RequestBody CrawlerRaw crawlerRaw) {
+    public ResponseEntity<CrawlerRawDTO> updateCrawlerRaw(
+            @PathVariable Integer id, @RequestBody CrawlerRawDTO crawlerRaw) {
         return service.getCrawlerRawById(id)
                 .map(
                         existingCrawlerRaw -> {
