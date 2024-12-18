@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 
 @Service
@@ -43,5 +44,10 @@ public class CrawlerJobService {
         entity.setCreatedBy(SecurityContextHolder.getContext().getAuthentication().getName());
         entity.setStatus("Created");
         return mapper.toDto(repository.save(entity));
+    }
+
+    public CrawlerJobDTO getCrawlJobById(String id) {
+        Optional<CrawlerJob> entity = repository.findById(id);
+        return entity.map(mapper::toDto).orElse(null);
     }
 }

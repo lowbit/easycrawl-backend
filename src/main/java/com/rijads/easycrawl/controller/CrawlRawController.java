@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @RestController
 @RequestMapping(value = "/crawler-raw")
@@ -49,6 +50,10 @@ public class CrawlRawController {
         return service.getCrawlerRawById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+    @GetMapping("/by-job-id/{id}")
+    public List<CrawlerRawDTO> getCrawlerRawsByJobId(@PathVariable Integer id) {
+        return service.getAllCrawlerRawsByJobId(id);
     }
 
     @PostMapping

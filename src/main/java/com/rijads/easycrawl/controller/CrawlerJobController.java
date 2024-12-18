@@ -22,6 +22,10 @@ public class CrawlerJobController {
     public Page<CrawlerJobDTO> getAllCrawlerJobs(final Pageable page) {
         return crawlerJobService.getAllCrawlerJobs(page);
     }
+    @GetMapping(value = "/{id}")
+    public CrawlerJobDTO getCrawlerJobById(@PathVariable final String id){
+        return crawlerJobService.getCrawlJobById(id);
+    }
     @GetMapping(value = "/{id}/errors")
     public List<CrawlerErrorDTO> getAllCrawlerJobErrors(@PathVariable Long id) {
         return crawlerJobService.getAllCrawlerJobErrors(id);
