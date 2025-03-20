@@ -1,7 +1,6 @@
 package com.rijads.easycrawl.dto;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 public class CrawlerJobDTO {
     private Integer id;
