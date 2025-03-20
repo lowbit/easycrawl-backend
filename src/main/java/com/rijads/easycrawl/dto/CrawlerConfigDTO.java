@@ -15,10 +15,19 @@ public class CrawlerConfigDTO {
     private String nextPageButtonSel;
     private Integer maxPages;
     private Boolean active;
+    private Boolean useInfiniteScroll;
     private LocalDateTime created;
     private String createdBy;
     private LocalDateTime modified;
     private String modifiedBy;
+
+    public Boolean getUseInfiniteScroll() {
+        return useInfiniteScroll;
+    }
+
+    public void setUseInfiniteScroll(Boolean useInfiniteScroll) {
+        this.useInfiniteScroll = useInfiniteScroll;
+    }
 
     public String getLinkSel() {
         return linkSel;

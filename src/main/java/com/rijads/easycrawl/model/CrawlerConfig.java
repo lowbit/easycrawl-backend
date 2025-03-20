@@ -53,6 +53,9 @@ public class CrawlerConfig {
     @Column(nullable = false)
     private Boolean active;
 
+    @Column(name = "use_infinite_scroll")
+    private Boolean useInfiniteScroll;
+
     @Column(nullable = false)
     private LocalDateTime created;
 
@@ -63,6 +66,14 @@ public class CrawlerConfig {
 
     @Column(length = 100, name = "modified_by")
     private String modifiedBy;
+
+    public Boolean getUseInfiniteScroll() {
+        return useInfiniteScroll;
+    }
+
+    public void setUseInfiniteScroll(Boolean useInfiniteScroll) {
+        this.useInfiniteScroll = useInfiniteScroll;
+    }
 
     public String getCode() {
         return code;

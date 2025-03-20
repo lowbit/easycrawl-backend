@@ -3,9 +3,12 @@ package com.rijads.easycrawl.service;
 import com.rijads.easycrawl.dto.CrawlerErrorDTO;
 import com.rijads.easycrawl.dto.CrawlerJobDTO;
 import com.rijads.easycrawl.mapper.CrawlerJobMapper;
+import com.rijads.easycrawl.mapper.CrawlerRawMapper;
 import com.rijads.easycrawl.model.CrawlerJob;
+import com.rijads.easycrawl.model.CrawlerRaw;
 import com.rijads.easycrawl.repository.CrawlerErrorRepository;
 import com.rijads.easycrawl.repository.CrawlerJobRepository;
+import com.rijads.easycrawl.repository.CrawlerRawRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -23,7 +26,8 @@ public class CrawlerJobService {
     private final CrawlerErrorRepository crawlerErrorRepository;
     private final CrawlerJobMapper mapper;
 
-    public CrawlerJobService(CrawlerJobRepository repository, CrawlerErrorRepository crawlerErrorRepository, CrawlerJobMapper mapper) {
+    public CrawlerJobService(CrawlerJobRepository repository, CrawlerErrorRepository crawlerErrorRepository,
+                             CrawlerJobMapper mapper ) {
         this.repository = repository;
         this.crawlerErrorRepository = crawlerErrorRepository;
         this.mapper = mapper;
