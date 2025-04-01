@@ -16,10 +16,46 @@ public class CrawlerConfigDTO {
     private Integer maxPages;
     private Boolean active;
     private Boolean useInfiniteScroll;
+    private Boolean useUrlPageParameter;
+    private String urlPageParameter;
     private LocalDateTime created;
     private String createdBy;
     private LocalDateTime modified;
     private String modifiedBy;
+    private Boolean autoSchedule;
+    private Integer autoScheduleEvery;
+
+    public Integer getAutoScheduleEvery() {
+        return autoScheduleEvery;
+    }
+
+    public void setAutoScheduleEvery(Integer autoScheduleEvery) {
+        this.autoScheduleEvery = autoScheduleEvery;
+    }
+
+    public Boolean getAutoSchedule() {
+        return autoSchedule;
+    }
+
+    public void setAutoSchedule(Boolean autoSchedule) {
+        this.autoSchedule = autoSchedule;
+    }
+
+    public String getUrlPageParameter() {
+        return urlPageParameter;
+    }
+
+    public void setUrlPageParameter(String urlPageParameter) {
+        this.urlPageParameter = urlPageParameter;
+    }
+
+    public Boolean getUseUrlPageParameter() {
+        return useUrlPageParameter;
+    }
+
+    public void setUseUrlPageParameter(Boolean useUrlPageParameter) {
+        this.useUrlPageParameter = useUrlPageParameter;
+    }
 
     public Boolean getUseInfiniteScroll() {
         return useInfiniteScroll;

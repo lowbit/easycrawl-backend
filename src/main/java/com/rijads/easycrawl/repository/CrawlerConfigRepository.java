@@ -15,4 +15,5 @@ public interface CrawlerConfigRepository
                 PagingAndSortingRepository<CrawlerConfig, String>,
                 JpaSpecificationExecutor<CrawlerConfig> {
     List<CrawlerConfig> findAllByCrawlerWebsite_Code(String crawlerWebsiteCode);
+    List<CrawlerConfig> findAllByAutoScheduleIsTrue();
 }

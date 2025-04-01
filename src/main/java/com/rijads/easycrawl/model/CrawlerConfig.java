@@ -41,20 +41,62 @@ public class CrawlerConfig {
     @Column(name = "price_sel", nullable = false)
     private String priceSel;
 
-    @Column(name = "use_next_page_button", nullable = false)
-    private Boolean useNextPageButton;
-
-    @Column(name = "next_page_button_sel")
-    private String nextPageButtonSel;
-
     @Column(name = "max_pages")
     private Integer maxPages;
 
     @Column(nullable = false)
     private Boolean active;
 
-    @Column(name = "use_infinite_scroll")
+    @Column(name = "use_url_page_parameter", nullable = false)
+    private Boolean useUrlPageParameter;
+    @Column(name = "url_page_parameter")
+    private String urlPageParameter;
+
+    @Column(name = "use_next_page_button", nullable = false)
+    private Boolean useNextPageButton;
+    @Column(name = "next_page_button_sel")
+    private String nextPageButtonSel;
+
+    @Column(name = "use_infinite_scroll", nullable = false)
     private Boolean useInfiniteScroll;
+
+    @Column(name = "auto_schedule")
+    private Boolean autoSchedule;
+
+    @Column(name = "auto_schedule_every")
+    private Integer autoScheduleEvery;
+
+    public Integer getAutoScheduleEvery() {
+        return autoScheduleEvery;
+    }
+
+    public void setAutoScheduleEvery(Integer autoScheduleEvery) {
+        this.autoScheduleEvery = autoScheduleEvery;
+    }
+
+    public Boolean getAutoSchedule() {
+        return autoSchedule;
+    }
+
+    public void setAutoSchedule(Boolean autoSchedule) {
+        this.autoSchedule = autoSchedule;
+    }
+
+    public Boolean getUseUrlPageParameter() {
+        return useUrlPageParameter;
+    }
+
+    public void setUseUrlPageParameter(Boolean useUrlPageParameter) {
+        this.useUrlPageParameter = useUrlPageParameter;
+    }
+
+    public String getUrlPageParameter() {
+        return urlPageParameter;
+    }
+
+    public void setUrlPageParameter(String urlPageParameter) {
+        this.urlPageParameter = urlPageParameter;
+    }
 
     @Column(nullable = false)
     private LocalDateTime created;
@@ -66,6 +108,17 @@ public class CrawlerConfig {
 
     @Column(length = 100, name = "modified_by")
     private String modifiedBy;
+
+    @Column(name = "schedule_every_hours")
+    private Integer scheduleEveryHours;
+
+    public Integer getScheduleEveryHours() {
+        return scheduleEveryHours;
+    }
+
+    public void setScheduleEveryHours(Integer scheduleEveryHours) {
+        this.scheduleEveryHours = scheduleEveryHours;
+    }
 
     public Boolean getUseInfiniteScroll() {
         return useInfiniteScroll;
