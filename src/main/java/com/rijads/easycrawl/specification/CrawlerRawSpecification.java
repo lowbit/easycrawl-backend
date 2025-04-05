@@ -42,4 +42,10 @@ public class CrawlerRawSpecification {
             return criteriaBuilder.between(root.get("created"), from, to);
         };
     }
+    public static Specification<CrawlerRaw> jobId(Double jobId) {
+        return (root, query, criteriaBuilder) -> {
+            if (jobId == null) return null;
+            return criteriaBuilder.equal(root.get("job").get("id"), jobId);
+        };
+    }
 }

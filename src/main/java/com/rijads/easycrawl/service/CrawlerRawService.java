@@ -34,12 +34,14 @@ public class CrawlerRawService {
             Double maxPrice,
             LocalDateTime createdFrom,
             LocalDateTime createdTo,
+            Double jobId,
             Pageable pageable) {
         Specification<CrawlerRaw> spec =
                 Specification.where(CrawlerRawSpecification.hasConfigCode(configCode))
                         .and(CrawlerRawSpecification.titleContains(title))
                         .and(CrawlerRawSpecification.priceBetween(minPrice, maxPrice))
-                        .and(CrawlerRawSpecification.createdBetween(createdFrom, createdTo));
+                        .and(CrawlerRawSpecification.createdBetween(createdFrom, createdTo))
+                        .and(CrawlerRawSpecification.jobId(jobId));
         return repository.findAll(spec, pageable).map(mapper::toDto);
     }
 

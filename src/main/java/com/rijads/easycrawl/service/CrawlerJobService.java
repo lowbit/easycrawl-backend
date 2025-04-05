@@ -42,14 +42,14 @@ public class CrawlerJobService {
         this.crawlerConfigRepository = crawlerConfigRepository;
     }
 
-    @Scheduled(cron = "0 */11 * * * *")
+    @Scheduled(cron = "0 0 * * * *")
     public void createScheduledJobs(){
         logger.info("Starting scheduled job creation");
         List<CrawlerConfig> configs = crawlerConfigRepository.findAllByAutoScheduleIsTrue();
         for(CrawlerConfig config : configs){
             CrawlerJob latestJob = repository.findFirstByConfigCodeWhereTestrunIsFalseandStatusIsFinished(config.getCode());
             LocalDateTime now = LocalDateTime.now();
-            if(latestJob == null || ChronoUnit.HOURS.between(now,latestJob.getCreated()) >= config.getAutoScheduleEvery()){
+            if(latestJob == null || ChronoUnit.HOURS.between(latestJob.getCreated(),now)+1 >= config.getAutoScheduleEvery()){
                 CrawlerJob job = new CrawlerJob();
                 job.setStatus("Created");
                 job.setCreatedBy("Scheduler");

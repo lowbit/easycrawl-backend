@@ -40,9 +40,10 @@ public class CrawlRawController {
                     LocalDateTime createdFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
                     LocalDateTime createdTo,
+            @RequestParam(required = false) Double jobId,
             Pageable pageable) {
         return service.getAllCrawlerRaws(
-                configCode, title, minPrice, maxPrice, createdFrom, createdTo, pageable);
+                configCode, title, minPrice, maxPrice, createdFrom, createdTo,jobId, pageable);
     }
 
     @GetMapping("/{id}")
