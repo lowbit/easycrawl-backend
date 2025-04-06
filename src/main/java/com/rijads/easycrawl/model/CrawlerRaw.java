@@ -6,7 +6,10 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "crawler_raw", schema = "public")
+@Table(
+        name = "crawler_raw",
+        schema = "public",
+        indexes = {@Index(name = "idx_crawler_raw_processed", columnList = "processed")})
 public class CrawlerRaw {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -39,8 +42,14 @@ public class CrawlerRaw {
     @Column(nullable = false)
     private LocalDateTime modified;
 
+    @Column(name = "processed")
+    private Boolean processed = false;
+
+    @Column(name = "matched_product_id")
+    private Integer matchedProductId;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(nullable = false, name="job_id")
+    @JoinColumn(nullable = false, name = "job_id")
     private CrawlerJob job;
 
     @PrePersist
@@ -52,6 +61,22 @@ public class CrawlerRaw {
     @PreUpdate
     protected void onUpdate() {
         modified = LocalDateTime.now();
+    }
+
+    public Boolean getProcessed() {
+        return processed;
+    }
+
+    public void setProcessed(Boolean processed) {
+        this.processed = processed;
+    }
+
+    public Integer getMatchedProductId() {
+        return matchedProductId;
+    }
+
+    public void setMatchedProductId(Integer matchedProductId) {
+        this.matchedProductId = matchedProductId;
     }
 
     public Integer getId() {

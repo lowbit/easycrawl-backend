@@ -1,6 +1,5 @@
 package com.rijads.easycrawl.repository;
 
-import com.rijads.easycrawl.dto.CrawlerRawDTO;
 import com.rijads.easycrawl.model.CrawlerJob;
 import com.rijads.easycrawl.model.CrawlerRaw;
 
@@ -17,4 +16,6 @@ public interface CrawlerRawRepository
                 PagingAndSortingRepository<CrawlerRaw, Integer>,
                 JpaSpecificationExecutor<CrawlerRaw> {
     List<CrawlerRaw> getByJob(CrawlerJob job);
+    List<CrawlerRaw> findByProcessedNullOrProcessedFalse();
+    List<CrawlerRaw> findByProcessedFalseAndConfigCodeContaining(String categoryCode);
 }

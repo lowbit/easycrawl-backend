@@ -15,6 +15,13 @@ public class ProductCategory {
     @Column(name = "name", nullable = false, length = 100)
     private String name;
 
+    public ProductCategory(String code) {
+        this.code = code;
+    }
+    public ProductCategory() {
+
+    }
+
     public String getCode() {
         return code;
     }
