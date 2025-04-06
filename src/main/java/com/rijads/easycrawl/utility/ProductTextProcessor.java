@@ -24,7 +24,6 @@ public class ProductTextProcessor {
     private Set<String> knownBrands = new HashSet<>();
     private Set<String> commonWords = new HashSet<>();
     private Set<String> commonColors = new HashSet<>();
-    private List<Pattern> modelPatterns = new ArrayList<>();
     private List<Pattern> storagePatterns = new ArrayList<>();
 
     // Initialize on startup and refresh periodically
@@ -56,21 +55,6 @@ public class ProductTextProcessor {
                 .map(String::toLowerCase)
                 .collect(Collectors.toSet());
 
-        // Load model patterns
-        modelPatterns = registryRepository
-                .findByRegistryTypeAndEnabledTrue(ProductRegistry.RegistryType.MODEL_PATTERN)
-                .stream()
-                .map(registry -> {
-                    try {
-                        return Pattern.compile(registry.getRegistryKey(), Pattern.CASE_INSENSITIVE);
-                    } catch (Exception e) {
-                        logger.error("Invalid regex pattern: {}", registry.getRegistryKey(), e);
-                        return null;
-                    }
-                })
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
-
         // Load storage patterns
         storagePatterns = registryRepository
                 .findByRegistryTypeAndEnabledTrue(ProductRegistry.RegistryType.STORAGE_PATTERN)
@@ -86,9 +70,8 @@ public class ProductTextProcessor {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
 
-        logger.info("Registry refreshed: {} brands, {} common words, {} colors, {} model patterns, {} storage patterns",
-                knownBrands.size(), commonWords.size(), commonColors.size(),
-                modelPatterns.size(), storagePatterns.size());
+        logger.info("Registry refreshed: {} brands, {} common words, {} colors, {} storage patterns",
+                knownBrands.size(), commonWords.size(), commonColors.size(), storagePatterns.size());
     }
 
     /**
@@ -161,11 +144,6 @@ public class ProductTextProcessor {
             return null;
         }
 
-        // Make sure registry is loaded
-        if (knownBrands.isEmpty()) {
-            refreshRegistry();
-        }
-
         String cleanedTitle = cleanTitle(title);
 
         // Strategy 1: Check against known brands list from registry
@@ -203,70 +181,86 @@ public class ProductTextProcessor {
 
     /**
      * Extracts the likely model from a product title
+     * Uses a more generalizable approach that works across product categories
      */
     public String extractModel(String title, String brand) {
         if (title == null || title.isEmpty()) {
             return null;
         }
 
-        // Make sure registry is loaded
-        if (modelPatterns.isEmpty()) {
-            refreshRegistry();
-        }
-
         String cleanedTitle = cleanTitle(title);
 
-        // Remove the brand from the beginning if it's there and brand is known
+        // 1. Remove the brand from the beginning if present
+        String titleWithoutBrand = cleanedTitle;
         if (brand != null && !brand.isEmpty()) {
-            cleanedTitle = cleanedTitle.replaceAll("^\\b" + brand.toLowerCase() + "\\b\\s*", "").trim();
+            titleWithoutBrand = cleanedTitle.replaceAll("(?i)^\\b" + Pattern.quote(brand.toLowerCase()) + "\\b\\s*", "").trim();
         }
 
-        // Strategy 1: Try model patterns from registry
-        for (Pattern pattern : modelPatterns) {
-            Matcher matcher = pattern.matcher(cleanedTitle);
-            if (matcher.find() && matcher.groupCount() > 0) {
-                return capitalizeFirstLetter(matcher.group(1).trim());
-            }
+        // 2. Split into words
+        String[] words = titleWithoutBrand.split("\\s+");
+        if (words.length == 0) {
+            return null;
         }
 
-        // Strategy 2: For smartphones, look for series + number patterns
-        // This works for examples like "Redmi Note 11", "Galaxy S23+"
-        Pattern seriesPattern = Pattern.compile(
-                "((?:galaxy|redmi|iphone|note|mi|nova|mate)\\s*(?:[a-z]*\\s*)?[0-9]{1,2}\\+?\\s*(?:ultra|plus|pro|max|lite)?)",
-                Pattern.CASE_INSENSITIVE);
+        // 3. Detect color and storage terms to exclude them
+        Set<String> wordsToExclude = new HashSet<>();
 
-        Matcher seriesMatcher = seriesPattern.matcher(cleanedTitle);
-        if (seriesMatcher.find()) {
-            return capitalizeFirstLetter(seriesMatcher.group(1).trim());
-        }
-
-        // Strategy 3: Look for storage capacity patterns
-        for (Pattern pattern : storagePatterns) {
-            Matcher matcher = pattern.matcher(cleanedTitle);
-            if (matcher.find() && matcher.groupCount() > 0) {
-                // Try to find a model name before the storage info
-                String beforeStorage = cleanedTitle.substring(0, matcher.start()).trim();
-                if (!beforeStorage.isEmpty()) {
-                    String[] words = beforeStorage.split("\\s+");
-                    if (words.length >= 2) {
-                        return capitalizeFirstLetter(words[0] + " " + words[1]) + " " + matcher.group(1).trim();
+        // Identify color terms
+        for (String color : commonColors) {
+            for (int i = 0; i < words.length; i++) {
+                if (words[i].equalsIgnoreCase(color)) {
+                    wordsToExclude.add(words[i]);
+                    // Also exclude the preceding word if it's "color" or similar
+                    if (i > 0 && (words[i-1].equalsIgnoreCase("color") ||
+                            words[i-1].equalsIgnoreCase("in") ||
+                            words[i-1].equalsIgnoreCase("boja"))) {
+                        wordsToExclude.add(words[i-1]);
                     }
-                    return capitalizeFirstLetter(beforeStorage) + " " + matcher.group(1).trim();
                 }
-                return matcher.group(1).trim();
             }
         }
 
-        // Strategy 4: Just use the first 2-3 words after brand if nothing else works
-        String[] words = cleanedTitle.split("\\s+");
-        if (words.length >= 2) {
-            if (words.length >= 3) {
-                return capitalizeFirstLetter(words[0] + " " + words[1] + " " + words[2]);
+        // Identify storage terms
+        for (int i = 0; i < words.length; i++) {
+            for (Pattern pattern : storagePatterns) {
+                if (pattern.matcher(words[i]).matches()) {
+                    wordsToExclude.add(words[i]);
+                }
             }
-            return capitalizeFirstLetter(words[0] + " " + words[1]);
         }
 
-        return cleanedTitle;
+        // 4. Identify the model portion - typically the first 2-3 words after brand that aren't colors or storage
+        StringBuilder modelBuilder = new StringBuilder();
+        int wordsAdded = 0;
+        int maxWordsToAdd = 3; // Cap at 3 words for the model
+
+        for (int i = 0; i < words.length && wordsAdded < maxWordsToAdd; i++) {
+            // Skip words to exclude
+            if (wordsToExclude.contains(words[i])) {
+                continue;
+            }
+
+            // Add word to model
+            if (modelBuilder.length() > 0) {
+                modelBuilder.append(" ");
+            }
+            modelBuilder.append(words[i]);
+            wordsAdded++;
+
+            // Stop if we've added a word with numbers (likely a model number)
+            if (words[i].matches(".*\\d+.*")) {
+                break;
+            }
+        }
+
+        String model = modelBuilder.toString().trim();
+
+        // If we couldn't extract anything, fall back to the first word
+        if (model.isEmpty() && words.length > 0) {
+            model = words[0];
+        }
+
+        return capitalizeFirstLetter(model);
     }
 
     /**
@@ -275,11 +269,6 @@ public class ProductTextProcessor {
     public String extractColor(String title) {
         if (title == null || title.isEmpty()) {
             return null;
-        }
-
-        // Make sure registry is loaded
-        if (commonColors.isEmpty()) {
-            refreshRegistry();
         }
 
         String cleanedTitle = cleanTitle(title);
@@ -302,11 +291,6 @@ public class ProductTextProcessor {
     public String extractStorageInfo(String title) {
         if (title == null || title.isEmpty()) {
             return null;
-        }
-
-        // Make sure registry is loaded
-        if (storagePatterns.isEmpty()) {
-            refreshRegistry();
         }
 
         // Try storage patterns from registry
