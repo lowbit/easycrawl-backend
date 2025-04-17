@@ -179,10 +179,6 @@ public class ProductTextProcessor {
         return null;
     }
 
-    /**
-     * Extracts the likely model from a product title
-     * Uses a more generalizable approach that works across product categories
-     */
     public String extractModel(String title, String brand) {
         if (title == null || title.isEmpty()) {
             return null;
@@ -202,8 +198,31 @@ public class ProductTextProcessor {
             return null;
         }
 
-        // 3. Detect color and storage terms to exclude them
+        // 3. Pre-process to detect storage patterns and other non-model information
         Set<String> wordsToExclude = new HashSet<>();
+
+        // Use the existing storage detection logic to identify and exclude storage patterns
+        String storageInfo = extractStorageInfo(titleWithoutBrand);
+        if (storageInfo != null) {
+            // Look for this storage pattern in the words and exclude it
+            for (int i = 0; i < words.length; i++) {
+                if (words[i].contains(storageInfo.replace("GB", "").replace("TB", "")) ||
+                        extractStorageInfo(words[i]) != null) {
+                    wordsToExclude.add(words[i]);
+                }
+            }
+        }
+
+        // Also detect RAM patterns using similar logic
+        String ramInfo = extractRamInfo(titleWithoutBrand); // Assuming you implement this method
+        if (ramInfo != null) {
+            for (int i = 0; i < words.length; i++) {
+                if (words[i].contains(ramInfo.replace("GB", "")) ||
+                        (ramInfo != null && words[i].contains(ramInfo))) {
+                    wordsToExclude.add(words[i]);
+                }
+            }
+        }
 
         // Identify color terms
         for (String color : commonColors) {
@@ -220,19 +239,10 @@ public class ProductTextProcessor {
             }
         }
 
-        // Identify storage terms
-        for (int i = 0; i < words.length; i++) {
-            for (Pattern pattern : storagePatterns) {
-                if (pattern.matcher(words[i]).matches()) {
-                    wordsToExclude.add(words[i]);
-                }
-            }
-        }
-
-        // 4. Identify the model portion - typically the first 2-3 words after brand that aren't colors or storage
+        // 4. Build model - typically first few meaningful words after brand
         StringBuilder modelBuilder = new StringBuilder();
         int wordsAdded = 0;
-        int maxWordsToAdd = 3; // Cap at 3 words for the model
+        int maxWordsToAdd = 5; // Cap at 3 words for the model
 
         for (int i = 0; i < words.length && wordsAdded < maxWordsToAdd; i++) {
             // Skip words to exclude
@@ -246,11 +256,6 @@ public class ProductTextProcessor {
             }
             modelBuilder.append(words[i]);
             wordsAdded++;
-
-            // Stop if we've added a word with numbers (likely a model number)
-            if (words[i].matches(".*\\d+.*")) {
-                break;
-            }
         }
 
         String model = modelBuilder.toString().trim();
@@ -293,12 +298,48 @@ public class ProductTextProcessor {
             return null;
         }
 
+        // Handle combined RAM+Storage pattern first (e.g., "3+64 GB", "12+1TB")
+        Pattern combinedPattern = Pattern.compile("(\\d+)\\s*\\+\\s*(\\d+)\\s*(?:GB|TB|G|T)?", Pattern.CASE_INSENSITIVE);
+        Matcher combinedMatcher = combinedPattern.matcher(title);
+        if (combinedMatcher.find()) {
+            // Extract just the storage part (second number)
+            String storageValue = combinedMatcher.group(2);
+            String unit = title.substring(combinedMatcher.end()).trim().toLowerCase().startsWith("tb") ? "TB" : "GB";
+            return storageValue + unit;
+        }
+
+        // Handle separate storage pattern (e.g., "128GB", "1TB")
         // Try storage patterns from registry
         for (Pattern pattern : storagePatterns) {
             Matcher matcher = pattern.matcher(title);
             if (matcher.find() && matcher.groupCount() > 0) {
                 return matcher.group(1).replaceAll("\\s+", "").toUpperCase();
             }
+        }
+
+        return null;
+    }
+    /**
+     * Extracts RAM info from a smartphone title
+     */
+    public String extractRamInfo(String title) {
+        if (title == null || title.isEmpty()) {
+            return null;
+        }
+
+        // Handle combined RAM+Storage pattern (e.g., "3+64 GB", "12+1TB")
+        Pattern combinedPattern = Pattern.compile("(\\d+)\\s*\\+\\s*(\\d+)\\s*(?:GB|TB|G|T)?", Pattern.CASE_INSENSITIVE);
+        Matcher combinedMatcher = combinedPattern.matcher(title);
+        if (combinedMatcher.find()) {
+            // Extract just the RAM part (first number)
+            return combinedMatcher.group(1) + "GB";
+        }
+
+        // Handle separate RAM pattern (e.g., "8GB RAM")
+        Pattern ramPattern = Pattern.compile("(\\d+)\\s*(?:GB|G)\\s*RAM", Pattern.CASE_INSENSITIVE);
+        Matcher ramMatcher = ramPattern.matcher(title);
+        if (ramMatcher.find()) {
+            return ramMatcher.group(1) + "GB";
         }
 
         return null;

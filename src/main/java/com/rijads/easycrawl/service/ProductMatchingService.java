@@ -40,7 +40,7 @@ public class ProductMatchingService {
     /**
      * Scheduled job to process new raw products
      */
-    @Scheduled(fixedRate = 900000) // Every 15 minutes
+    @Scheduled( fixedRate = 900000, initialDelay = 15000)
     @Transactional
     public void processNewRawProducts() {
         logger.info("Starting scheduled product processing job");
@@ -85,6 +85,10 @@ public class ProductMatchingService {
         String model = textProcessor.extractModel(rawItem.getTitle(), brand);
         String color = textProcessor.extractColor(rawItem.getTitle());
         String storageInfo = textProcessor.extractStorageInfo(rawItem.getTitle());
+        String property1 = "";
+        if(categoryCode.equalsIgnoreCase("smartphones")){
+            property1 = textProcessor.extractRamInfo(rawItem.getTitle());
+        }
 
         // Find potential matching products
         List<Product> candidates = findCandidateProducts(brand, model, categoryCode);
@@ -104,11 +108,11 @@ public class ProductMatchingService {
 
         // Either add as variant to existing product or create new product
         if (bestMatch != null) {
-            addVariantToProduct(bestMatch, rawItem, color, storageInfo);
+            addVariantToProduct(bestMatch, rawItem, color, storageInfo, property1);
             rawItem.setMatchedProductId(bestMatch.getId());
         } else {
             Product newProduct = createNewProduct(rawItem, cleanedTitle, brand, model, categoryCode);
-            addVariantToProduct(newProduct, rawItem, color, storageInfo);
+            addVariantToProduct(newProduct, rawItem, color, storageInfo, property1);
             rawItem.setMatchedProductId(newProduct.getId());
         }
 
@@ -205,13 +209,13 @@ public class ProductMatchingService {
     /**
      * Add a variant to an existing product
      */
-    private void addVariantToProduct(Product product, CrawlerRaw rawItem, String color, String storageInfo) {
+    private void addVariantToProduct(Product product, CrawlerRaw rawItem, String color, String storageInfo, String property1) {
         // Get the website from the crawler job
         CrawlerWebsite website = rawItem.getJob().getCrawlerWebsite();
         String sourceUrl = rawItem.getLink();
 
         Optional<ProductVariant> existingVariant = productVariantRepository
-                .findByProductAndWebsiteAndSourceUrl(product, website, sourceUrl);
+                .findByProductAndSourceUrl(product, sourceUrl);
 
         if (existingVariant.isPresent()) {
             // Update existing variant
@@ -235,6 +239,7 @@ public class ProductMatchingService {
 
             // Set the storage info as size for smartphones
             variant.setSize(storageInfo);
+            variant.setProperty1(property1);
 
             variant.setPrice(rawItem.getPrice());
             variant.setOldPrice(rawItem.getOldPrice());

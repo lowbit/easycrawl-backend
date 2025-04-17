@@ -35,6 +35,18 @@ public class ProductVariant {
     @Column(length = 50)
     private String size;
 
+    @Column(length = 255)
+    private String property1;
+
+    @Column(length = 255)
+    private String property2;
+
+    @Column(length = 255)
+    private String property3;
+
+    @Column(length = 255)
+    private String property4;
+
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal price;
 
@@ -130,6 +142,38 @@ public class ProductVariant {
 
     public void setSize(String size) {
         this.size = size;
+    }
+
+    public String getProperty1() {
+        return property1;
+    }
+
+    public void setProperty1(String property1) {
+        this.property1 = property1;
+    }
+
+    public String getProperty2() {
+        return property2;
+    }
+
+    public void setProperty2(String property2) {
+        this.property2 = property2;
+    }
+
+    public String getProperty3() {
+        return property3;
+    }
+
+    public void setProperty3(String property3) {
+        this.property3 = property3;
+    }
+
+    public String getProperty4() {
+        return property4;
+    }
+
+    public void setProperty4(String property4) {
+        this.property4 = property4;
     }
 
     public BigDecimal getPrice() {
