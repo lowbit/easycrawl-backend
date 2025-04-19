@@ -12,7 +12,6 @@ public class ProductRegistry {
         BRAND,
         COMMON_WORD,        // Common words to ignore
         COLOR,
-        MODEL_PATTERN,      // Regex patterns for model extraction
         STORAGE_PATTERN     // Patterns for storage capacity
     }
     @Id

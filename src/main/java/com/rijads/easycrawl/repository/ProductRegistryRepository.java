@@ -9,7 +9,24 @@ import java.util.List;
 @Repository
 public interface ProductRegistryRepository extends JpaRepository<ProductRegistry, Integer> {
 
-    List<ProductRegistry> findByRegistryTypeAndEnabledTrue(ProductRegistry.RegistryType type);
+    /**
+     * Find registry entries by type and enabled status
+     */
+    List<ProductRegistry> findByRegistryTypeAndEnabledTrue(ProductRegistry.RegistryType registryType);
 
-    List<ProductRegistry> findByRegistryTypeInAndEnabledTrue(List<ProductRegistry.RegistryType> types);
+    /**
+     * Find registry entries by key containing the search term
+     */
+    List<ProductRegistry> findByRegistryKeyContainingIgnoreCase(String searchTerm);
+
+    /**
+     * Find registry entries by key and type
+     */
+    List<ProductRegistry> findByRegistryKeyAndRegistryType(String registryKey, ProductRegistry.RegistryType registryType);
+
+    /**
+     * Check if a registry entry exists with the given key and type
+     */
+    boolean existsByRegistryKeyIgnoreCaseAndRegistryType(String registryKey, ProductRegistry.RegistryType registryType);
+    List<ProductRegistry> findByRegistryType(ProductRegistry.RegistryType registryType);
 }
