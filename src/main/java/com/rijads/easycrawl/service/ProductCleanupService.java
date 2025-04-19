@@ -7,17 +7,14 @@ import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Service for cleaning and maintaining product data consistency.
- * Uses the same logic as the ProductMatchingService to standardize names,
- * detect duplicates, and merge them automatically.
+ * Updated to work with the job system.
  */
 @Service
 public class ProductCleanupService {
@@ -39,27 +36,66 @@ public class ProductCleanupService {
     @Autowired
     private ProductRegistryRepository productRegistryRepository;
 
+    @Autowired
+    private JobRepository jobRepository;
+
+    @Autowired
+    private JobErrorRepository jobErrorRepository;
+
     /**
-     * Scheduled job that runs daily to clean up product data
-     * Applies latest registry rules and merges duplicates
+     * Process a product cleanup job
+     * This handles the cleanup operations based on the job parameters
      */
-    @Scheduled(cron = "0 0 2 * * ?") // Runs at 2 AM every day
     @Transactional
-    public void scheduledProductCleanup() {
-        logger.info("Starting scheduled product cleanup");
+    public void processCleanupJob(Job job) {
+        logger.info("Starting product cleanup for job {}", job.getId());
 
         try {
-            // 1. Update product brand and model names to apply latest registry rules
-            Map<String, Object> result = updateProductNamesBasedOnRegistry();
+            // Determine what cleanup operations to perform based on parameters
+            String parameters = job.getParameters();
+            Map<String, Object> results = new HashMap<>();
 
-            // 2. Detect and merge duplicates
-            mergeProductDuplicates();
+            if (parameters == null || parameters.isEmpty() || parameters.contains("all")) {
+                // Do both name updates and duplicate merging
+                Map<String, Object> nameResults = updateProductNamesBasedOnRegistry();
+                Map<String, Object> mergeResults = mergeProductDuplicates();
 
-            logger.info("Scheduled product cleanup completed successfully");
-            logger.info("Updated products: {}, Merged duplicates: {}",
-                    result.get("updatedCount"), result.get("mergedCount"));
+                results.putAll(nameResults);
+                results.putAll(mergeResults);
+
+                logger.info("Completed full product cleanup. Updated {} products, merged {} duplicates",
+                        nameResults.get("updatedCount"), mergeResults.get("mergedCount"));
+            } else if (parameters.contains("names")) {
+                // Only do name updates
+                results = updateProductNamesBasedOnRegistry();
+                logger.info("Completed product name updates. Updated {} products",
+                        results.get("updatedCount"));
+            } else if (parameters.contains("duplicates")) {
+                // Only do duplicate merging
+                results = mergeProductDuplicates();
+                logger.info("Completed duplicate merging. Merged {} products",
+                        results.get("mergedCount"));
+            }
+
+            // Store results in the job parameters field
+            job.setParameters(job.getParameters() + " | Results: " +
+                    "updated=" + results.getOrDefault("updatedCount", 0) +
+                    ", merged=" + results.getOrDefault("mergedCount", 0));
+
         } catch (Exception e) {
-            logger.error("Error during scheduled product cleanup: {}", e.getMessage(), e);
+            logger.error("Error during product cleanup job {}: {}", job.getId(), e.getMessage(), e);
+
+            // Record error
+            JobError error = new JobError();
+            error.setJob(job);
+            error.setSource("system");
+            error.setCategory("product-cleanup");
+            error.setJobType("PRODUCT_CLEANUP");
+            error.setError(e.getMessage());
+            error.setCreated(LocalDateTime.now());
+            jobErrorRepository.save(error);
+
+            throw e;
         }
     }
 
@@ -110,6 +146,8 @@ public class ProductCleanupService {
 
             // Extract and standardize model
             String extractedModel = textProcessor.extractModel(cleanedTitle, newBrand);
+
+            // Standardize model name
             String standardizedModel = textProcessor.standardizeModelName(newBrand, extractedModel);
 
             // Update brand if it changed
@@ -397,16 +435,58 @@ public class ProductCleanupService {
 
     /**
      * Manual trigger for product cleanup
-     * Can be called from API endpoints
+     * Updated to create and use a job entry
      */
     @Transactional
     public Map<String, Object> manualProductCleanup() {
-        Map<String, Object> nameResults = updateProductNamesBasedOnRegistry();
-        Map<String, Object> mergeResults = mergeProductDuplicates();
+        // Create a new job
+        Job job = new Job();
+        job.setStatus("Running");
+        job.setJobType("PRODUCT_CLEANUP");
+        job.setCreated(LocalDateTime.now());
+        job.setCreatedBy("API");
+        job.setStartedAt(LocalDateTime.now());
+        job.setParameters("all-manual");
+        job = jobRepository.save(job);
 
-        Map<String, Object> combinedResults = new HashMap<>();
-        combinedResults.putAll(nameResults);
-        combinedResults.putAll(mergeResults);
-        return combinedResults;
+        Map<String, Object> results = new HashMap<>();
+
+        try {
+            // Perform cleanup
+            Map<String, Object> nameResults = updateProductNamesBasedOnRegistry();
+            Map<String, Object> mergeResults = mergeProductDuplicates();
+
+            results.putAll(nameResults);
+            results.putAll(mergeResults);
+
+            // Mark job as finished
+            job.setStatus("Finished");
+            job.setFinishedAt(LocalDateTime.now());
+            job.setParameters(job.getParameters() + " | Results: " +
+                    "updated=" + results.getOrDefault("updatedCount", 0) +
+                    ", merged=" + results.getOrDefault("mergedCount", 0));
+            jobRepository.save(job);
+
+        } catch (Exception e) {
+            // Mark job as failed
+            job.setStatus("Failed");
+            job.setFinishedAt(LocalDateTime.now());
+            job.setErrorMessage(e.getMessage());
+            jobRepository.save(job);
+
+            // Record error
+            JobError error = new JobError();
+            error.setJob(job);
+            error.setSource("system");
+            error.setCategory("product-cleanup");
+            error.setJobType("PRODUCT_CLEANUP");
+            error.setError(e.getMessage());
+            error.setCreated(LocalDateTime.now());
+            jobErrorRepository.save(error);
+
+            throw e;
+        }
+
+        return results;
     }
 }

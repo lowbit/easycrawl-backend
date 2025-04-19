@@ -1,58 +1,25 @@
-package com.rijads.easycrawl.model;
-
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+package com.rijads.easycrawl.dto;
 
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "crawler_job", schema = "public")
-public class CrawlerJob {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+/**
+ * Data Transfer Object for Job
+ */
+public class JobDTO {
     private Integer id;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "website_code", referencedColumnName = "code", nullable = false)
-    private CrawlerWebsite crawlerWebsite;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "config_code", referencedColumnName = "code", nullable = false)
-    private CrawlerConfig config;
-
-    @Column(name = "status", nullable = false, length = 20)
+    private String crawlerWebsiteCode;
+    private String crawlerConfigCode;
     private String status;
-
-    @Column(name = "started_at")
+    private String jobType;
     private LocalDateTime startedAt;
-
-    @Column(name = "finished_at")
     private LocalDateTime finishedAt;
-
-    @Column(name = "error_message")
     private String errorMessage;
-
-    @Column(name = "created", nullable = false)
     private LocalDateTime created;
-
-    @Column(name = "created_by", nullable = false, length = 100)
     private String createdBy;
-
-    @Column(name = "modified")
     private LocalDateTime modified;
-
-    @Column(name = "modified_by", length = 100)
     private String modifiedBy;
-
-    @Column(name = "test_run")
     private Boolean testRun;
+    private String parameters;
 
     public Integer getId() {
         return id;
@@ -62,28 +29,20 @@ public class CrawlerJob {
         this.id = id;
     }
 
-    public CrawlerWebsite getCrawlerWebsite() {
-        return crawlerWebsite;
-    }
-
-    public void setCrawlerWebsite(final CrawlerWebsite crawlerWebsite) {
-        this.crawlerWebsite = crawlerWebsite;
-    }
-
-    public CrawlerConfig getConfig() {
-        return config;
-    }
-
-    public void setConfig(final CrawlerConfig config) {
-        this.config = config;
-    }
-
     public String getStatus() {
         return status;
     }
 
     public void setStatus(final String status) {
         this.status = status;
+    }
+
+    public String getJobType() {
+        return jobType;
+    }
+
+    public void setJobType(String jobType) {
+        this.jobType = jobType;
     }
 
     public LocalDateTime getStartedAt() {
@@ -142,11 +101,35 @@ public class CrawlerJob {
         this.modifiedBy = modifiedBy;
     }
 
+    public String getCrawlerWebsiteCode() {
+        return crawlerWebsiteCode;
+    }
+
+    public void setCrawlerWebsiteCode(String crawlerWebsiteCode) {
+        this.crawlerWebsiteCode = crawlerWebsiteCode;
+    }
+
+    public String getCrawlerConfigCode() {
+        return crawlerConfigCode;
+    }
+
+    public void setCrawlerConfigCode(String crawlerConfigCode) {
+        this.crawlerConfigCode = crawlerConfigCode;
+    }
+
     public Boolean getTestRun() {
         return testRun;
     }
 
     public void setTestRun(Boolean testRun) {
         this.testRun = testRun;
+    }
+
+    public String getParameters() {
+        return parameters;
+    }
+
+    public void setParameters(String parameters) {
+        this.parameters = parameters;
     }
 }

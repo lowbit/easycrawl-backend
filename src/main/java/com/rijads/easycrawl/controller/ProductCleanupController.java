@@ -15,7 +15,7 @@ import java.util.Map;
  * Simple controller to manually trigger product cleanup operations
  */
 @RestController
-@RequestMapping("/api/products/cleanup")
+@RequestMapping("/api/products/cleanup-manual")
 public class ProductCleanupController {
     private static final Logger logger = LoggerFactory.getLogger(ProductCleanupController.class);
 

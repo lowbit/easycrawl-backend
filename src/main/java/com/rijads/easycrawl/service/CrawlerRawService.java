@@ -2,8 +2,8 @@ package com.rijads.easycrawl.service;
 
 import com.rijads.easycrawl.dto.CrawlerRawDTO;
 import com.rijads.easycrawl.mapper.CrawlerRawMapper;
-import com.rijads.easycrawl.model.CrawlerJob;
 import com.rijads.easycrawl.model.CrawlerRaw;
+import com.rijads.easycrawl.model.Job;
 import com.rijads.easycrawl.repository.CrawlerRawRepository;
 import com.rijads.easycrawl.specification.CrawlerRawSpecification;
 
@@ -15,7 +15,6 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Service
 public class CrawlerRawService {
@@ -59,7 +58,7 @@ public class CrawlerRawService {
     }
 
     public List<CrawlerRawDTO> getAllCrawlerRawsByJobId(Integer id) {
-        CrawlerJob job = new CrawlerJob();
+        Job job = new Job();
         job.setId(id);
         return repository.getByJob(job).stream().map(mapper::toDto).toList();
     }

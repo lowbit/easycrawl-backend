@@ -50,7 +50,7 @@ public class CrawlerRaw {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(nullable = false, name = "job_id")
-    private CrawlerJob job;
+    private Job job;
 
     @PrePersist
     protected void onCreate() {
@@ -87,11 +87,11 @@ public class CrawlerRaw {
         this.id = id;
     }
 
-    public CrawlerJob getJob() {
+    public Job getJob() {
         return job;
     }
 
-    public void setJob(CrawlerJob job) {
+    public void setJob(Job job) {
         this.job = job;
     }
 

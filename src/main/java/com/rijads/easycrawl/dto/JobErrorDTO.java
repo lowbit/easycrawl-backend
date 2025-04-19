@@ -1,15 +1,15 @@
 package com.rijads.easycrawl.dto;
 
-import com.rijads.easycrawl.model.CrawlerJob;
-import jakarta.persistence.*;
-
 import java.time.LocalDateTime;
 
-public class CrawlerErrorDTO {
-
+/**
+ * Data Transfer Object for Job Error
+ */
+public class JobErrorDTO {
     private Integer id;
-    private String website;
+    private String source;
     private String category;
+    private String jobType;
     private String error;
     private LocalDateTime created;
     private Integer jobId;
@@ -22,12 +22,12 @@ public class CrawlerErrorDTO {
         this.id = id;
     }
 
-    public String getWebsite() {
-        return website;
+    public String getSource() {
+        return source;
     }
 
-    public void setWebsite(String website) {
-        this.website = website;
+    public void setSource(String source) {
+        this.source = source;
     }
 
     public String getCategory() {
@@ -36,6 +36,14 @@ public class CrawlerErrorDTO {
 
     public void setCategory(String category) {
         this.category = category;
+    }
+
+    public String getJobType() {
+        return jobType;
+    }
+
+    public void setJobType(String jobType) {
+        this.jobType = jobType;
     }
 
     public String getError() {

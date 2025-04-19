@@ -11,19 +11,25 @@ import jakarta.persistence.Table;
 
 import java.time.LocalDateTime;
 
+/**
+ * Represents an error that occurred during job execution
+ */
 @Entity
-@Table(name = "crawler_error", schema = "public")
-public class CrawlerError {
+@Table(name = "job_error", schema = "public")
+public class JobError {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @Column(name = "website")
-    private String website;
+    @Column(name = "source")
+    private String source;
 
     @Column(name = "category")
     private String category;
+
+    @Column(name = "job_type", nullable = false, length = 50)
+    private String jobType;
 
     @Column(name = "error")
     private String error;
@@ -33,7 +39,7 @@ public class CrawlerError {
 
     @ManyToOne
     @JoinColumn(name = "job_id", referencedColumnName = "id")
-    private CrawlerJob job;
+    private Job job;
 
     public Integer getId() {
         return id;
@@ -43,12 +49,12 @@ public class CrawlerError {
         this.id = id;
     }
 
-    public String getWebsite() {
-        return website;
+    public String getSource() {
+        return source;
     }
 
-    public void setWebsite(final String website) {
-        this.website = website;
+    public void setSource(final String source) {
+        this.source = source;
     }
 
     public String getCategory() {
@@ -57,6 +63,14 @@ public class CrawlerError {
 
     public void setCategory(final String category) {
         this.category = category;
+    }
+
+    public String getJobType() {
+        return jobType;
+    }
+
+    public void setJobType(String jobType) {
+        this.jobType = jobType;
     }
 
     public String getError() {
@@ -75,11 +89,11 @@ public class CrawlerError {
         this.created = created;
     }
 
-    public CrawlerJob getJob() {
+    public Job getJob() {
         return job;
     }
 
-    public void setJob(final CrawlerJob job) {
+    public void setJob(final Job job) {
         this.job = job;
     }
 }

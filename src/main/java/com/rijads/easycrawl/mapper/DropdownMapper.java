@@ -1,6 +1,5 @@
 package com.rijads.easycrawl.mapper;
 
-import com.rijads.easycrawl.dto.CrawlerConfigDTO;
 import com.rijads.easycrawl.dto.DropdownDTO;
 import com.rijads.easycrawl.model.CrawlerConfig;
 import com.rijads.easycrawl.model.CrawlerWebsite;
