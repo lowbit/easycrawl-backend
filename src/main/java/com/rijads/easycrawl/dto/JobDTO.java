@@ -20,6 +20,7 @@ public class JobDTO {
     private String modifiedBy;
     private Boolean testRun;
     private String parameters;
+    private String description;
 
     public Integer getId() {
         return id;
@@ -131,5 +132,13 @@ public class JobDTO {
 
     public void setParameters(String parameters) {
         this.parameters = parameters;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
     }
 }

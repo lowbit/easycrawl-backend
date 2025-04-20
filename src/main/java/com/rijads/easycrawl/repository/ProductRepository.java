@@ -1,16 +1,24 @@
 package com.rijads.easycrawl.repository;
 
+import com.rijads.easycrawl.model.CrawlerRaw;
 import com.rijads.easycrawl.model.Product;
 import com.rijads.easycrawl.model.ProductCategory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.CrudRepository;
+import org.springframework.data.repository.PagingAndSortingRepository;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
 @Repository
-public interface ProductRepository extends JpaRepository<Product, Integer> {
+public interface ProductRepository extends CrudRepository<Product, Integer>,
+        PagingAndSortingRepository<Product, Integer>,
+        JpaSpecificationExecutor<Product> {
     List<Product> findByCategory(ProductCategory category);
     List<Product> findByBrand(String brand);
 
@@ -56,4 +64,6 @@ public interface ProductRepository extends JpaRepository<Product, Integer> {
      * Used for duplicate detection
      */
     List<Product> findByBrandNotNullAndModelNotNull();
+    @Query("SELECT DISTINCT p.brand FROM Product p WHERE p.brand IS NOT NULL")
+    List<String> findDistinctBrands();
 }

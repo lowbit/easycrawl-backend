@@ -64,6 +64,9 @@ public class Job {
     @Column(name = "parameters", columnDefinition = "TEXT")
     private String parameters;
 
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
+
     public Integer getId() {
         return id;
     }
@@ -174,5 +177,13 @@ public class Job {
 
     public void setParameters(String parameters) {
         this.parameters = parameters;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
     }
 }

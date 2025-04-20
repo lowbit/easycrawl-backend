@@ -5,16 +5,16 @@ import com.rijads.easycrawl.dto.ProductDTO;
 import com.rijads.easycrawl.dto.ProductDetailDTO;
 import com.rijads.easycrawl.mapper.ProductMapper;
 import com.rijads.easycrawl.model.Product;
-import com.rijads.easycrawl.model.ProductCategory;
 import com.rijads.easycrawl.model.ProductVariant;
 import com.rijads.easycrawl.repository.ProductRepository;
 import com.rijads.easycrawl.repository.ProductVariantRepository;
 import com.rijads.easycrawl.service.JobService;
 import com.rijads.easycrawl.service.ProductCleanupService;
 import com.rijads.easycrawl.service.ProductMatchingService;
+import com.rijads.easycrawl.specification.ProductSpecification;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.Page;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,7 +22,6 @@ import org.springframework.data.domain.Pageable;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/products")
@@ -46,37 +45,20 @@ public class ProductController {
     private ProductMapper productMapper;
 
     /**
-     * Search products with various filters
+     * Search products with various filters - with pagination support
      */
     @GetMapping("/search")
-    public ResponseEntity<List<ProductDTO>> searchProducts(
-            @RequestParam(required = false) String query,
+    public ResponseEntity<Page<ProductDTO>> searchProducts(
+            @RequestParam(required = false) String name,
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String brand,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-
-        Pageable pageable = PageRequest.of(page, size, Sort.by("name").ascending());
-
-        // This would need a custom query method in the repository
-        // For simplicity, we'll just use the basic search for now
-        List<Product> products;
-
-        if (query != null && !query.isEmpty()) {
-            products = productRepository.searchProducts(query);
-        } else if (category != null && !category.isEmpty()) {
-            products = productRepository.findByCategory(new ProductCategory(category));
-        } else if (brand != null && !brand.isEmpty()) {
-            products = productRepository.findByBrand(brand);
-        } else {
-            products = productRepository.findAll(pageable).getContent();
-        }
-
-        List<ProductDTO> productDtos = products.stream()
-                .map(product -> productMapper.toDto(product))
-                .collect(Collectors.toList());
-
-        return ResponseEntity.ok(productDtos);
+            Pageable pageable) {
+        Specification<Product> spec = Specification.where(
+                ProductSpecification.hasBrand(brand))
+                .and(ProductSpecification.hasCategory(category))
+                .and(ProductSpecification.hasName(name));
+        Page<ProductDTO> productDtoPage = productRepository.findAll(spec, pageable).map(productMapper::toDto);
+        return ResponseEntity.ok(productDtoPage);
     }
 
     /**
@@ -115,6 +97,11 @@ public class ProductController {
         } catch (Exception e) {
             return ResponseEntity.internalServerError().build();
         }
+    }
+    @GetMapping("/brands-list")
+    public ResponseEntity<List<String>> getBrandsList() {
+        List<String> brands = productRepository.findDistinctBrands();
+        return ResponseEntity.ok(brands);
     }
 
     /**

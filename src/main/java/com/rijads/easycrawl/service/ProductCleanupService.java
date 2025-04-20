@@ -7,6 +7,7 @@ import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.util.Streamable;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -111,7 +112,7 @@ public class ProductCleanupService {
         List<Map<String, Object>> updatedProducts = new ArrayList<>();
 
         // Process all products
-        List<Product> allProducts = productRepository.findAll();
+        List<Product> allProducts = Streamable.of(productRepository.findAll()).toList();
         logger.info("Processing {} products for name standardization", allProducts.size());
 
         for (Product product : allProducts) {
