@@ -19,6 +19,7 @@ public interface JobMapper {
     @Mapping(source = "crawlerWebsiteCode", target = "crawlerWebsite.code")
     @Mapping(source = "crawlerConfigCode", target = "config.code")
     Job toEntity(JobDTO dto);
+    Job toEntityWithoutObjects(JobDTO dto);
 
     @Mapping(source = "job.id", target = "jobId")
     JobErrorDTO errorToDto(JobError entity);

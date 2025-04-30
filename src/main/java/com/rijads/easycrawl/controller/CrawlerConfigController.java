@@ -35,28 +35,10 @@ public class CrawlerConfigController {
         return service.getAllCrawlerConfigs(website, category, createdFrom, createdTo, pageable);
     }
 
-    @GetMapping(value = "/crawler-website-dropdown")
-    public List<DropdownDTO> getAllWebsitesDropdown() {
-        return service.getAllWebsitesDropdown();
-    }
 
-    @GetMapping(value = "/product-category-dropdown")
-    public List<DropdownDTO> getAllCategoriesDropdown() {
-        return service.getAllCategoriesDropdown();
-    }
     @GetMapping(value = "/crawler-config-dropdown")
     public List<DropdownDTO> getAllCrawlerConfigsByWebsiteCodeDropdown( @RequestParam final String websiteCode) {
         return service.getAllCrawlerConfigsDropdown(websiteCode);
-    }
-
-    @PostMapping(value = "/product-category")
-    public ResponseEntity<DropdownDTO> addCategory(@RequestBody DropdownDTO request) {
-        return service.addProductCategory(request);
-    }
-
-    @PostMapping(value = "/crawler-website")
-    public ResponseEntity<CrawlerWebsiteDTO> addCategory(@RequestBody CrawlerWebsiteDTO request) {
-        return service.addCrawlerWebsite(request);
     }
 
     @PostMapping()

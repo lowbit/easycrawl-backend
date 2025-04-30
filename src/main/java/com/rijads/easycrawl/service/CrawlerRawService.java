@@ -28,6 +28,7 @@ public class CrawlerRawService {
 
     public Page<CrawlerRawDTO> getAllCrawlerRaws(
             String configCode,
+            String website,
             String title,
             Double minPrice,
             Double maxPrice,
@@ -37,6 +38,7 @@ public class CrawlerRawService {
             Pageable pageable) {
         Specification<CrawlerRaw> spec =
                 Specification.where(CrawlerRawSpecification.hasConfigCode(configCode))
+                        .and(CrawlerRawSpecification.hasWebsite(website))
                         .and(CrawlerRawSpecification.titleContains(title))
                         .and(CrawlerRawSpecification.priceBetween(minPrice, maxPrice))
                         .and(CrawlerRawSpecification.createdBetween(createdFrom, createdTo))

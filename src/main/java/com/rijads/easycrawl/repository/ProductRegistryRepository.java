@@ -2,12 +2,15 @@ package com.rijads.easycrawl.repository;
 
 import com.rijads.easycrawl.model.ProductRegistry;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.repository.CrudRepository;
+import org.springframework.data.repository.PagingAndSortingRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
 @Repository
-public interface ProductRegistryRepository extends JpaRepository<ProductRegistry, Integer> {
+public interface ProductRegistryRepository extends CrudRepository<ProductRegistry, Integer>, PagingAndSortingRepository<ProductRegistry, Integer>, JpaSpecificationExecutor<ProductRegistry> {
 
     /**
      * Find registry entries by type and enabled status

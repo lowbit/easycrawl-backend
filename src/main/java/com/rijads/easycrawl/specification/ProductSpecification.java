@@ -10,7 +10,7 @@ public class ProductSpecification {
     }
     public static Specification<Product> hasCategory(String category){
         return ((root, query, criteriaBuilder) ->
-                category==null?null:criteriaBuilder.equal(root.get("category").get("name"), category));
+                category==null?null:criteriaBuilder.equal(root.get("category").get("code"), category));
     }
     public static Specification<Product> hasBrand(String brand){
         return ((root, query, criteriaBuilder) ->

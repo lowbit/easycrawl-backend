@@ -4,14 +4,18 @@ import com.rijads.easycrawl.model.CrawlerWebsite;
 import com.rijads.easycrawl.model.Product;
 import com.rijads.easycrawl.model.ProductVariant;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.CrudRepository;
+import org.springframework.data.repository.PagingAndSortingRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface ProductVariantRepository extends JpaRepository<ProductVariant, Integer> {
+public interface ProductVariantRepository extends CrudRepository<ProductVariant,Integer>,
+        PagingAndSortingRepository<ProductVariant, Integer>, JpaSpecificationExecutor<ProductVariant> {
     /**
      * Find variants by product ID
      */

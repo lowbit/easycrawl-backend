@@ -31,25 +31,15 @@ import java.util.stream.Collectors;
 public class CrawlerConfigService {
     private final CrawlerConfigRepository repository;
     private final CrawlerConfigMapper mapper;
-
-    private final CrawlerWebsiteRepository crawlerWebsiteRepository;
     private final DropdownMapper dropdownMapper;
-    private final CrawlerWebsiteMapper crawlerWebsiteMapper;
-    private final ProductCategoryRepository productCategoryRepository;
 
     public CrawlerConfigService(
             final CrawlerConfigRepository repository,
             final CrawlerConfigMapper mapper,
-            final CrawlerWebsiteRepository crawlerWebsiteRepository,
-            final DropdownMapper dropdownMapper,
-            final CrawlerWebsiteMapper crawlerWebsiteMapper,
-            final ProductCategoryRepository productCategoryRepository) {
+            final DropdownMapper dropdownMapper) {
         this.repository = repository;
         this.mapper = mapper;
-        this.crawlerWebsiteRepository = crawlerWebsiteRepository;
         this.dropdownMapper = dropdownMapper;
-        this.crawlerWebsiteMapper = crawlerWebsiteMapper;
-        this.productCategoryRepository = productCategoryRepository;
     }
 
     public Page<CrawlerConfigDTO> getAllCrawlerConfigs(
@@ -63,42 +53,13 @@ public class CrawlerConfigService {
                         .and(CrawlerConfigSpecification.hasCategory(category))
                         .and(CrawlerConfigSpecification.createdBetween(createdFrom, createdTo));
         Page<CrawlerConfig> resEntities = repository.findAll(spec, pageable);
-        Page<CrawlerConfigDTO> res = resEntities.map(entity -> mapper.toDto(entity));
-        return res;
-    }
-
-    public List<DropdownDTO> getAllWebsitesDropdown() {
-        List<CrawlerWebsite> resEntities = crawlerWebsiteRepository.findAll();
-        return resEntities.stream()
-                .map(crawlerWebsite -> dropdownMapper.crawlerWebsiteToDto(crawlerWebsite))
-                .toList();
-    }
-
-    public List<DropdownDTO> getAllCategoriesDropdown() {
-        List<ProductCategory> resEntities = productCategoryRepository.findAll();
-        return resEntities.stream()
-                .map(crawlerWebsite -> dropdownMapper.productCategoryToDto(crawlerWebsite))
-                .toList();
-    }
-
-    public ResponseEntity<DropdownDTO> addProductCategory(final DropdownDTO request) {
-        ProductCategory entity = dropdownMapper.dtoToProductCategory(request);
-        productCategoryRepository.save(entity);
-        return ResponseEntity.ok(dropdownMapper.productCategoryToDto(entity));
-    }
-
-    public ResponseEntity<CrawlerWebsiteDTO> addCrawlerWebsite(final CrawlerWebsiteDTO request) {
-        CrawlerWebsite entity = crawlerWebsiteMapper.dtoToEntity(request);
-        entity.setCreated(LocalDateTime.now());
-        entity.setCreatedBy(SecurityContextHolder.getContext().getAuthentication().getName());
-        crawlerWebsiteRepository.save(entity);
-        return ResponseEntity.ok(crawlerWebsiteMapper.toDto(entity));
+        return resEntities.map(mapper::toDto);
     }
 
     public ResponseEntity<CrawlerConfigDTO> addCrawlerConfig(final CrawlerConfigDTO request) {
         CrawlerConfig entity = mapper.toEntity(request);
         String code = request.getCrawlerWebsite() + '/' + request.getProductCategory();
-        if (repository.existsById(code)){
+        if (repository.existsById(code)) {
             return new ResponseEntity<>(null, HttpStatus.CONFLICT);
         }
         entity.setCode(code);
@@ -107,7 +68,6 @@ public class CrawlerConfigService {
         repository.save(entity);
         return ResponseEntity.ok(mapper.toDto(entity));
     }
-
 
     public ResponseEntity<CrawlerConfigDTO> editCrawlerConfig(
             final String code, final CrawlerConfigDTO request) {
@@ -158,9 +118,8 @@ public class CrawlerConfigService {
     }
 
     public List<DropdownDTO> getAllCrawlerConfigsDropdown(String websiteCode) {
-        List<CrawlerConfig> entities = (List<CrawlerConfig>) repository.findAllByCrawlerWebsite_Code(websiteCode);
-        return entities.stream()
-                .map(entity -> dropdownMapper.crawlerConfigToDto(entity))
-                .toList();
+        List<CrawlerConfig> entities =
+                (List<CrawlerConfig>) repository.findAllByCrawlerWebsite_Code(websiteCode);
+        return entities.stream().map(dropdownMapper::crawlerConfigToDto).toList();
     }
 }

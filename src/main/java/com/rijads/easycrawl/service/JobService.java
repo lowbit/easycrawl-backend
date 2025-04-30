@@ -125,8 +125,23 @@ public class JobService {
     /**
      * Get all jobs with pagination
      */
-    public Page<JobDTO> getAllJobs(final Pageable page) {
-        Specification<Job> spec = (root, query, criteriaBuilder) -> null;
+    public Page<JobDTO> getAllJobs(final String jobType, final String status, final String crawlerConfigCode, final Pageable page) {
+        Specification<Job> spec = Specification.where(null);
+
+        if (jobType != null) {
+            spec = spec.and((root, query, criteriaBuilder) ->
+                    criteriaBuilder.equal(root.get("jobType"), jobType));
+        }
+
+        if (status != null) {
+            spec = spec.and((root, query, criteriaBuilder) ->
+                    criteriaBuilder.equal(root.get("status"), status));
+        }
+        if (crawlerConfigCode != null) {
+            spec = spec.and((root, query, criteriaBuilder) ->
+                    criteriaBuilder.like(criteriaBuilder.lower(root.get("config").get("code")), "%"+crawlerConfigCode+"%"));
+        }
+
         Page<Job> resEntities = repository.findAll(spec, page);
         return resEntities.map(jobMapper::toDto);
     }
@@ -145,7 +160,12 @@ public class JobService {
      * Create a new job
      */
     public JobDTO create(JobDTO jobDTO) {
-        Job entity = jobMapper.toEntity(jobDTO);
+        Job entity;
+        if(jobDTO.getCrawlerConfigCode()==null || jobDTO.getCrawlerWebsiteCode()==null){
+            entity = jobMapper.toEntityWithoutObjects(jobDTO);
+        } else {
+            entity = jobMapper.toEntity(jobDTO);
+        }
         entity.setCreated(LocalDateTime.now());
 
         // Get current authenticated user or use system if none

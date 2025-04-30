@@ -48,4 +48,11 @@ public class CrawlerRawSpecification {
             return criteriaBuilder.equal(root.get("job").get("id"), jobId);
         };
     }
+
+    public static Specification<CrawlerRaw> hasWebsite(String website) {
+        return (root, query, criteriaBuilder) -> {
+            if (website == null) return null;
+            return criteriaBuilder.like(root.get("configCode"), "%" + website + "/%");
+        };
+    }
 }

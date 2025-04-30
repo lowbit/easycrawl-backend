@@ -1,5 +1,6 @@
 package com.rijads.easycrawl.controller;
 
+import com.rijads.easycrawl.dto.AddBrandsRequest;
 import com.rijads.easycrawl.service.UnmappableItemService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -74,29 +75,5 @@ public class UnmappableItemController {
         }
 
         return ResponseEntity.ok(details);
-    }
-
-    /**
-     * Request class for adding brands
-     */
-    public static class AddBrandsRequest {
-        private List<String> brands;
-        private String description;
-
-        public List<String> getBrands() {
-            return brands;
-        }
-
-        public void setBrands(List<String> brands) {
-            this.brands = brands;
-        }
-
-        public String getDescription() {
-            return description;
-        }
-
-        public void setDescription(String description) {
-            this.description = description;
-        }
     }
 }

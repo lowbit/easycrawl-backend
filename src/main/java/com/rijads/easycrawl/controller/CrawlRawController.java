@@ -33,6 +33,7 @@ public class CrawlRawController {
     @GetMapping
     public Page<CrawlerRawDTO> getAllCrawlRaws(
             @RequestParam(required = false) String configCode,
+            @RequestParam(required = false) String website,
             @RequestParam(required = false) String title,
             @RequestParam(required = false) Double minPrice,
             @RequestParam(required = false) Double maxPrice,
@@ -43,7 +44,7 @@ public class CrawlRawController {
             @RequestParam(required = false) Double jobId,
             Pageable pageable) {
         return service.getAllCrawlerRaws(
-                configCode, title, minPrice, maxPrice, createdFrom, createdTo,jobId, pageable);
+                configCode,website, title, minPrice, maxPrice, createdFrom, createdTo,jobId, pageable);
     }
 
     @GetMapping("/{id}")

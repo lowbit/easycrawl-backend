@@ -27,8 +27,11 @@ public class JobController {
      * Get all jobs with pagination
      */
     @GetMapping
-    public Page<JobDTO> getAllJobs(final Pageable page) {
-        return jobService.getAllJobs(page);
+    public Page<JobDTO> getAllJobs(@RequestParam(required = false) final String jobType,
+                                   @RequestParam(required = false) final String status,
+                                   @RequestParam(required = false) final String crawlerConfigCode,
+                                   final Pageable page) {
+        return jobService.getAllJobs(jobType, status, crawlerConfigCode, page);
     }
 
     /**
