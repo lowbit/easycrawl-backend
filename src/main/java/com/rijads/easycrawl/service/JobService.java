@@ -44,7 +44,7 @@ public class JobService {
     /**
      * Creates scheduled jobs for all job types
      */
-    @Scheduled(cron = "0 10 * * * *")
+    @Scheduled(cron = "0 0 * * * *")
     public void createScheduledJobs() {
         logger.info("Starting scheduled job creation");
 
@@ -57,10 +57,10 @@ public class JobService {
         // Create scheduled product cleanup jobs
 
         // Weekly product cleanup job
-        LocalDateTime now = LocalDateTime.now();
-        if (now.getDayOfWeek().getValue() == 1 && now.getHour() == 2) { // Monday at 2 AM
-            createScheduledProductCleanupJobs();
-        }
+//        LocalDateTime now = LocalDateTime.now();
+//        if (now.getDayOfWeek().getValue() == 1 && now.getHour() == 2) { // Monday at 2 AM
+//            createScheduledProductCleanupJobs();
+//        }
     }
 
     /**

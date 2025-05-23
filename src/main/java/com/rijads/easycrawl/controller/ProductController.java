@@ -1,10 +1,13 @@
 package com.rijads.easycrawl.controller;
 
+import com.rijads.easycrawl.dto.GroupedVariantDTO;
 import com.rijads.easycrawl.dto.JobDTO;
+import com.rijads.easycrawl.dto.PriceHistoryDTO;
 import com.rijads.easycrawl.dto.ProductDTO;
 import com.rijads.easycrawl.dto.ProductVariantDTO;
 import com.rijads.easycrawl.model.ProductCategory;
 import com.rijads.easycrawl.service.ProductService;
+import com.rijads.easycrawl.service.ProductVariantService;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -17,9 +20,11 @@ import java.util.Map;
 @RequestMapping("/products")
 public class ProductController {
     private final ProductService productService;
+    private final ProductVariantService productVariantService;
 
-    public ProductController(ProductService productService) {
+    public ProductController(ProductService productService, ProductVariantService productVariantService) {
         this.productService = productService;
+        this.productVariantService = productVariantService;
     }
 
     /** Search products with various filters - with pagination support */
@@ -114,5 +119,37 @@ public class ProductController {
     @GetMapping("/categories")
     public List<ProductCategory> getAllProductCategories() {
         return productService.getAllProductGategories();
+    }
+
+    /**
+     * Get grouped variants for a product with price history
+     */
+    @GetMapping("/{productId}/grouped-variants")
+    public ResponseEntity<List<GroupedVariantDTO>> getGroupedVariants(
+            @PathVariable Integer productId) {
+        List<GroupedVariantDTO> groupedVariants = productVariantService.getGroupedVariants(productId);
+        return ResponseEntity.ok(groupedVariants);
+    }
+    
+    /**
+     * Get price history for a specific variant
+     */
+    @GetMapping("/variants/{variantId}/price-history")
+    public ResponseEntity<List<PriceHistoryDTO>> getVariantPriceHistory(
+            @PathVariable Integer variantId) {
+        List<PriceHistoryDTO> priceHistory = productVariantService.getVariantPriceHistory(variantId);
+        return ResponseEntity.ok(priceHistory);
+    }
+    
+    /**
+     * Get price history for variants with the same title and website
+     */
+    @GetMapping("/variants/price-history")
+    public ResponseEntity<List<PriceHistoryDTO>> getGroupedVariantPriceHistory(
+            @RequestParam String title,
+            @RequestParam String websiteCode) {
+        List<PriceHistoryDTO> priceHistory = 
+                productVariantService.getGroupedVariantPriceHistory(title, websiteCode);
+        return ResponseEntity.ok(priceHistory);
     }
 }

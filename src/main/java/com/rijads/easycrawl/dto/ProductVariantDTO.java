@@ -15,6 +15,8 @@ public class ProductVariantDTO {
     private String size;
     private String sourceUrl;
     private String imageUrl;
+    private Boolean hasPriceHistory;
+    private String lastUpdated;
 
     public Integer getId() {
         return id;
@@ -110,5 +112,21 @@ public class ProductVariantDTO {
 
     public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
+    }
+
+    public Boolean getHasPriceHistory() {
+        return hasPriceHistory;
+    }
+
+    public void setHasPriceHistory(Boolean hasPriceHistory) {
+        this.hasPriceHistory = hasPriceHistory;
+    }
+
+    public String getLastUpdated() {
+        return lastUpdated;
+    }
+
+    public void setLastUpdated(String lastUpdated) {
+        this.lastUpdated = lastUpdated;
     }
 }

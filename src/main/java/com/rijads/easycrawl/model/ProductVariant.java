@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.ArrayList;
 
 @Entity
 @Table(name = "product_variant", schema = "public", indexes = {
@@ -76,6 +78,9 @@ public class ProductVariant {
 
     @Column
     private LocalDateTime modified;
+
+    @OneToMany(mappedBy = "variant", cascade = CascadeType.ALL, orphanRemoval = false)
+    private List<PriceHistory> priceHistories;
 
     @PrePersist
     protected void onCreate() {
@@ -254,5 +259,16 @@ public class ProductVariant {
 
     public void setModified(LocalDateTime modified) {
         this.modified = modified;
+    }
+
+    public List<PriceHistory> getPriceHistories() {
+        if (priceHistories == null) {
+            priceHistories = new ArrayList<>();
+        }
+        return priceHistories;
+    }
+
+    public void setPriceHistories(List<PriceHistory> priceHistories) {
+        this.priceHistories = priceHistories;
     }
 }

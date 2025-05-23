@@ -8,10 +8,10 @@ import com.rijads.easycrawl.utility.ProductTextProcessor;
 import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -25,15 +25,39 @@ public class ProductMatchingService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    @Autowired private CrawlerRawRepository crawlerRawRepository;
-    @Autowired private ProductRepository productRepository;
-    @Autowired private ProductRegistryRepository productRegistryRepository;
-    @Autowired private ProductVariantRepository productVariantRepository;
-    @Autowired private ProductTextProcessor textProcessor;
-    @Autowired private ProductCategoryRepository productCategoryRepository;
-    @Autowired private UnmappableItemRepository unmappableItemRepository;
-    @Autowired private JobRepository jobRepository;
-    @Autowired private JobErrorRepository jobErrorRepository;
+    private final CrawlerRawRepository crawlerRawRepository;
+    private final ProductRepository productRepository;
+    private final ProductRegistryRepository productRegistryRepository;
+    private final ProductVariantRepository productVariantRepository;
+    private final ProductTextProcessor textProcessor;
+    private final ProductCategoryRepository productCategoryRepository;
+    private final UnmappableItemRepository unmappableItemRepository;
+    private final JobRepository jobRepository;
+    private final JobErrorRepository jobErrorRepository;
+    private final PriceHistoryRepository priceHistoryRepository;
+
+    public ProductMatchingService(
+            CrawlerRawRepository crawlerRawRepository,
+            ProductRepository productRepository,
+            ProductRegistryRepository productRegistryRepository,
+            ProductVariantRepository productVariantRepository,
+            ProductTextProcessor textProcessor,
+            ProductCategoryRepository productCategoryRepository,
+            UnmappableItemRepository unmappableItemRepository,
+            JobRepository jobRepository,
+            JobErrorRepository jobErrorRepository,
+            PriceHistoryRepository priceHistoryRepository) {
+        this.crawlerRawRepository = crawlerRawRepository;
+        this.productRepository = productRepository;
+        this.productRegistryRepository = productRegistryRepository;
+        this.productVariantRepository = productVariantRepository;
+        this.textProcessor = textProcessor;
+        this.productCategoryRepository = productCategoryRepository;
+        this.unmappableItemRepository = unmappableItemRepository;
+        this.jobRepository = jobRepository;
+        this.jobErrorRepository = jobErrorRepository;
+        this.priceHistoryRepository = priceHistoryRepository;
+    }
 
     /**
      * Process raw products based on a job
@@ -44,7 +68,7 @@ public class ProductMatchingService {
         logger.info("Starting product matching for job {}", job.getId());
 
         List<CrawlerRaw> unprocessedItems;
-
+        
         // Check if we have a specific category from job parameters or config
         String categoryCode = null;
         if (job.getConfig() != null && job.getConfig().getProductCategory() != null) {
@@ -53,10 +77,11 @@ public class ProductMatchingService {
             categoryCode = job.getParameters();
         }
 
-        // Get items to process based on category
+        // Get ALL unprocessed items without grouping by title
+        long startTime = System.currentTimeMillis();
         if (categoryCode != null) {
-            unprocessedItems = crawlerRawRepository.findByProcessedFalseAndConfigCodeContaining(categoryCode);
-            logger.info("Found {} unprocessed raw products for category {}",
+            unprocessedItems = crawlerRawRepository.findByProcessedNullOrFalseAndConfigCodeContaining(categoryCode);
+            logger.info("Found {} unprocessed raw products for category {}", 
                     unprocessedItems.size(), categoryCode);
         } else {
             unprocessedItems = crawlerRawRepository.findByProcessedNullOrProcessedFalse();
@@ -65,227 +90,452 @@ public class ProductMatchingService {
 
         int processed = 0;
         int skipped = 0;
+        int pricesRecorded = 0;
+        int newVariantsCreated = 0;
+        int variantsUpdated = 0;
+        int newProductsCreated = 0;
+        int totalItems = unprocessedItems.size();
+        
+        // For performance, group items by LINK, not title
+        // This is more accurate as different links usually represent different product variants
+        Map<String, List<CrawlerRaw>> itemsByLink = unprocessedItems.stream()
+                .filter(item -> item.getLink() != null && !item.getLink().isEmpty())
+                .collect(Collectors.groupingBy(CrawlerRaw::getLink));
+        
+        // Create a separate group for items with null/empty links (rare but possible)
+        List<CrawlerRaw> itemsWithEmptyLinks = unprocessedItems.stream()
+                .filter(item -> item.getLink() == null || item.getLink().isEmpty())
+                .collect(Collectors.toList());
+                
+        int uniqueLinkCount = itemsByLink.size() + (itemsWithEmptyLinks.isEmpty() ? 0 : 1);
+        
+        logger.info("PROGRESS: [0%] Starting to process {} unique product links from {} total items", 
+                uniqueLinkCount, totalItems);
 
-        // Process raw items
-        for (CrawlerRaw rawItem : unprocessedItems) {
+        // Process items grouped by link
+        int linksProcessed = 0;
+        int lastProgressUpdate = 0;
+        
+        // First process items with valid links
+        for (Map.Entry<String, List<CrawlerRaw>> entry : itemsByLink.entrySet()) {
+            String link = entry.getKey();
+            List<CrawlerRaw> itemsWithSameLink = entry.getValue();
+            
             try {
-                boolean mapped = processRawProduct(rawItem);
-
-                if (mapped) {
-                    processed++;
-                } else {
-                    skipped++;
-                }
-
-                // Log progress periodically
-                if ((processed + skipped) % 50 == 0) {
-                    logger.info(
-                            "Processed {} of {} raw products ({} skipped and tracked)",
-                            processed,
-                            unprocessedItems.size(),
-                            skipped);
-                }
-            } catch (Exception e) {
-                logger.error(
-                        "Error processing raw product with id {}: {}",
-                        rawItem.getId(),
-                        e.getMessage(),
-                        e);
-                // Log the error
-                trackUnmappableItem(
-                        rawItem,
-                        UnmappableItem.ReasonCode.OTHER,
-                        "Error processing: " + e.getMessage());
-
-                // Record error in job_error table
-                String source = rawItem.getConfigCode().split("/")[0];
-                String category = extractCategory(rawItem.getConfigCode());
-                createJobError(job, source, category, e);
-            }
-        }
-
-        logger.info(
-                "Completed processing {} raw products ({} skipped and tracked)",
-                processed,
-                skipped);
-    }
-
-    /**
-     * Record an error for a job in the job_error table
-     */
-    private void createJobError(Job job, String source, String category, Exception e) {
-        JobError error = new JobError();
-        error.setJob(job);
-        error.setSource(source);
-        error.setCategory(category);
-        error.setJobType("PRODUCT_MAPPING");
-        error.setError(e.getMessage());
-        error.setCreated(LocalDateTime.now());
-        jobErrorRepository.save(error);
-    }
-
-    /**
-     * Manual trigger method for API endpoints
-     * Updated to create and use a job entry
-     */
-    @Transactional
-    public void manualProcessUnprocessedItems() {
-        // Create a new job
-        Job job = new Job();
-        job.setStatus("Running");
-        job.setJobType("PRODUCT_MAPPING");
-        job.setCreated(LocalDateTime.now());
-        job.setCreatedBy("API");
-        job.setStartedAt(LocalDateTime.now());
-        job = jobRepository.save(job);
-
-        try {
-            processRawProductsForJob(job);
-
-            // Mark job as finished
-            job.setStatus("Finished");
-            job.setFinishedAt(LocalDateTime.now());
-            jobRepository.save(job);
-        } catch (Exception e) {
-            // Mark job as failed
-            job.setStatus("Failed");
-            job.setFinishedAt(LocalDateTime.now());
-            job.setErrorMessage(e.getMessage());
-            jobRepository.save(job);
-
-            // Record the error
-            createJobError(job, "system", "all", e);
-            throw e;
-        }
-    }
-
-    /**
-     * Process items for a specific category with detailed results tracking
-     * Used by the job processor service
-     *
-     * @param category The product category code to process
-     * @param job The job object for tracking progress and results
-     * @return The number of newly mapped products
-     */
-    @Transactional
-    public int processItemsByCategory(String category, Job job) {
-        if (category == null || category.isEmpty()) {
-            throw new IllegalArgumentException("Category cannot be null or empty");
-        }
-
-        StringBuilder resultDescription = new StringBuilder();
-        resultDescription.append("Processing items for category: ").append(category).append("\n\n");
-
-        List<CrawlerRaw> unprocessedItems =
-                crawlerRawRepository.findByProcessedFalseAndConfigCodeContaining(category);
-
-        resultDescription.append("Found ").append(unprocessedItems.size())
-                .append(" unprocessed items\n\n");
-
-        logger.info(
-                "Found {} unprocessed raw products for category {}",
-                unprocessedItems.size(),
-                category);
-
-        int processed = 0;
-        int skipped = 0;
-        List<String> newProductNames = new ArrayList<>();
-        Map<String, Integer> brandCounts = new HashMap<>();
-
-        for (CrawlerRaw rawItem : unprocessedItems) {
-            try {
-                boolean mapped = processRawProduct(rawItem);
-                if (mapped) {
-                    processed++;
-
-                    // Track the product that was mapped
-                    if (rawItem.getMatchedProductId() != null) {
-                        Optional<Product> product = productRepository.findById(rawItem.getMatchedProductId());
-                        if (product.isPresent()) {
-                            String productName = product.get().getName();
-                            if (product.get().getBrand() != null) {
-                                brandCounts.put(product.get().getBrand(),
-                                        brandCounts.getOrDefault(product.get().getBrand(), 0) + 1);
+                // For each link, sort items by creation date (oldest first to maintain natural order)
+                itemsWithSameLink.sort(Comparator.comparing(CrawlerRaw::getCreated, 
+                        Comparator.nullsLast(Comparator.naturalOrder())));
+                
+                // Process the first/oldest item to establish product mapping
+                CrawlerRaw firstItem = itemsWithSameLink.get(0);
+                boolean mapped = processRawProduct(firstItem);
+                
+                if (mapped && firstItem.getMatchedProductId() != null) {
+                    // Check if this is a newly created product
+                    if (firstItem.getMatchedProductId() > 0 && 
+                            !productRepository.existsByIdAndCreatedBefore(
+                                firstItem.getMatchedProductId(), 
+                                LocalDateTime.now().minusMinutes(5))) {
+                        newProductsCreated++;
+                    }
+                    
+                    // Now record price history for ALL items with this link
+                    // This is critical to maintain complete price history!
+                    for (int i = 0; i < itemsWithSameLink.size(); i++) {
+                        CrawlerRaw item = itemsWithSameLink.get(i);
+                        // Mark all items as processed and map to same product
+                        item.setProcessed(true);
+                        item.setMatchedProductId(firstItem.getMatchedProductId());
+                        crawlerRawRepository.save(item);
+                        
+                        // For the first item, price is already recorded during processRawProduct
+                        // For others, we need to explicitly record price history by date
+                        if (i > 0) {
+                            // Find the variant already created by the first item
+                            Product product = new Product();
+                            product.setId(firstItem.getMatchedProductId());
+                            Optional<ProductVariant> variant = productVariantRepository
+                                    .findByProductAndSourceUrl(
+                                            product, 
+                                            link);
+                            
+                            if (variant.isPresent()) {
+                                // Just record price history for this item's date
+                                // No need to update the variant itself again
+                                recordPriceHistoryForRawItem(variant.get(), item);
+                                pricesRecorded++;
+                            } else {
+                                // This is unusual - the variant should have been created
+                                // by the first item, but just in case, create it
+                                PriceProcessingResult result = processItemForPrice(item, firstItem.getMatchedProductId());
+                                if (result.priceRecorded) pricesRecorded++;
+                                if (result.newVariantCreated) newVariantsCreated++;
+                                if (result.variantUpdated) variantsUpdated++;
                             }
-
-                            // Only add to the list for display if it's a new product
-                            if (!newProductNames.contains(productName)) {
-                                newProductNames.add(productName);
-                            }
+                        } else {
+                            // Count the price recorded by the first item
+                            pricesRecorded++;
                         }
                     }
+                    
+                    processed += itemsWithSameLink.size();
                 } else {
-                    skipped++;
+                    // First item wasn't mappable, so we'll skip all others with same link
+                    skipped += itemsWithSameLink.size();
                 }
 
-                // Update job description periodically for progress tracking
-                if ((processed + skipped) % 50 == 0) {
-                    StringBuilder progressUpdate = new StringBuilder(resultDescription);
-                    progressUpdate.append("Progress: Processed ").append(processed + skipped)
-                            .append(" of ").append(unprocessedItems.size())
-                            .append(" (").append(processed).append(" mapped, ")
-                            .append(skipped).append(" skipped)\n");
-
-                    job.setDescription(progressUpdate.toString());
-                    jobRepository.save(job);
+                linksProcessed++;
+                
+                // Calculate progress percentage
+                int progressPercentage = (int)((processed + skipped) * 100.0 / totalItems);
+                int linksProgressPercentage = (int)((double)linksProcessed * 100.0 / uniqueLinkCount);
+                
+                // Log progress at regular intervals or when percentage changes significantly
+                // Now we'll update more frequently
+                if (progressPercentage != lastProgressUpdate || linksProcessed % 20 == 0) {
+                    lastProgressUpdate = progressPercentage;
+                    long elapsed = System.currentTimeMillis() - startTime;
+                    
+                    // Estimate remaining time
+                    long timePerItem = (processed + skipped) > 0 ? elapsed / (processed + skipped) : 0;
+                    long estimatedTotalTime = timePerItem * totalItems;
+                    long remainingTime = estimatedTotalTime - elapsed;
+                    
+                    String progressBar = createProgressBar(progressPercentage);
+                    
+                    logger.info(
+                            "PROGRESS: {}% {} | Links: {}% ({}/{}) | Items: {}/{} | Products: {} | Variants: +{}/±{} | Prices: {} | Est: ~{}min",
+                            progressPercentage,
+                            progressBar,
+                            linksProgressPercentage,
+                            linksProcessed,
+                            uniqueLinkCount,
+                            processed + skipped,
+                            totalItems,
+                            newProductsCreated,
+                            newVariantsCreated,
+                            variantsUpdated,
+                            pricesRecorded,
+                            remainingTime / 60000);
+                    
+                    // Update job description with progress so it's visible in the UI
+                    if (job != null) {
+                        job.setDescription(String.format(
+                            "Processing %d items: %d%% complete | %d processed, %d skipped | %d new products, %d new variants",
+                            totalItems, progressPercentage, processed, skipped, newProductsCreated, newVariantsCreated));
+                        jobRepository.save(job);
+                    }
                 }
             } catch (Exception e) {
                 logger.error(
-                        "Error processing raw product with id {}: {}",
-                        rawItem.getId(),
+                        "Error processing raw products with link {}: {}",
+                        link,
                         e.getMessage(),
                         e);
 
-                // Track the error
-                trackUnmappableItem(
-                        rawItem,
-                        UnmappableItem.ReasonCode.OTHER,
-                        "Error processing: " + e.getMessage());
-
-                skipped++;
+                // Record error in job_error table for the first item in the group
+                CrawlerRaw firstItem = itemsWithSameLink.get(0);
+                String source = firstItem.getConfigCode().split("/")[0];
+                String category = extractCategory(firstItem.getConfigCode());
+                createJobError(job, source, category, e);
+                
+                skipped += itemsWithSameLink.size();
+            }
+        }
+        
+        // Now process items with empty links (if any)
+        if (!itemsWithEmptyLinks.isEmpty()) {
+            logger.info("PROGRESS: [{}%] Processing {} items with empty/missing links", 
+                    (int)((processed + skipped) * 100.0 / totalItems),
+                    itemsWithEmptyLinks.size());
+            
+            // Group by title as fallback for items with no links
+            Map<String, List<CrawlerRaw>> emptyLinkItemsByTitle = itemsWithEmptyLinks.stream()
+                    .collect(Collectors.groupingBy(CrawlerRaw::getTitle));
+                    
+            for (Map.Entry<String, List<CrawlerRaw>> entry : emptyLinkItemsByTitle.entrySet()) {
+                String title = entry.getKey();
+                List<CrawlerRaw> itemsWithSameTitle = entry.getValue();
+                
+                try {
+                    // Process the first item to establish product mapping
+                    CrawlerRaw firstItem = itemsWithSameTitle.get(0);
+                    boolean mapped = processRawProduct(firstItem);
+                    
+                    if (mapped && firstItem.getMatchedProductId() != null) {
+                        // Check if this is a newly created product
+                        if (firstItem.getMatchedProductId() > 0 && 
+                                !productRepository.existsByIdAndCreatedBefore(
+                                    firstItem.getMatchedProductId(), 
+                                    LocalDateTime.now().minusMinutes(5))) {
+                            newProductsCreated++;
+                        }
+                        
+                        // Process all other items
+                        for (int i = 1; i < itemsWithSameTitle.size(); i++) {
+                            CrawlerRaw otherItem = itemsWithSameTitle.get(i);
+                            otherItem.setProcessed(true);
+                            otherItem.setMatchedProductId(firstItem.getMatchedProductId());
+                            crawlerRawRepository.save(otherItem);
+                            
+                            // Process for price history
+                            PriceProcessingResult result = processItemForPrice(otherItem, firstItem.getMatchedProductId());
+                            if (result.priceRecorded) pricesRecorded++;
+                            if (result.newVariantCreated) newVariantsCreated++;
+                            if (result.variantUpdated) variantsUpdated++;
+                        }
+                        
+                        processed += itemsWithSameTitle.size();
+                    } else {
+                        skipped += itemsWithSameTitle.size();
+                    }
+                    
+                    // Calculate progress percentage
+                    int progressPercentage = (int)((processed + skipped) * 100.0 / totalItems);
+                    if (progressPercentage != lastProgressUpdate) {
+                        lastProgressUpdate = progressPercentage;
+                        String progressBar = createProgressBar(progressPercentage);
+                        logger.info(
+                                "PROGRESS: {}% {} | Items: {}/{} | Products: {} | Variants: +{}/±{} | Prices: {}",
+                                progressPercentage,
+                                progressBar,
+                                processed + skipped,
+                                totalItems,
+                                newProductsCreated,
+                                newVariantsCreated,
+                                variantsUpdated,
+                                pricesRecorded);
+                    }
+                } catch (Exception e) {
+                    logger.error("Error processing items with title {}: {}", title, e.getMessage());
+                    skipped += itemsWithSameTitle.size();
+                }
             }
         }
 
-        // Build final results summary
-        resultDescription.append("== RESULTS SUMMARY ==\n");
-        resultDescription.append("Total processed: ").append(processed + skipped).append("\n");
-        resultDescription.append("Successfully mapped: ").append(processed).append("\n");
-        resultDescription.append("Skipped/unmappable: ").append(skipped).append("\n\n");
-
-        // Add information about brands
-        if (!brandCounts.isEmpty()) {
-            resultDescription.append("== BRANDS SUMMARY ==\n");
-            brandCounts.entrySet().stream()
-                    .sorted((e1, e2) -> e2.getValue().compareTo(e1.getValue()))
-                    .forEach(entry ->
-                            resultDescription.append(entry.getKey()).append(": ")
-                                    .append(entry.getValue()).append("\n"));
-            resultDescription.append("\n");
-        }
-
-        // Add list of new products (limited to 100 to avoid huge descriptions)
-        if (!newProductNames.isEmpty()) {
-            resultDescription.append("== NEW PRODUCTS ==\n");
-            newProductNames.stream().limit(100).forEach(name ->
-                    resultDescription.append("- ").append(name).append("\n"));
-
-            if (newProductNames.size() > 100) {
-                resultDescription.append("... and ").append(newProductNames.size() - 100)
-                        .append(" more products\n");
-            }
-        }
-
+        long totalTime = System.currentTimeMillis() - startTime;
+        String finalProgressBar = createProgressBar(100);
         logger.info(
-                "Completed processing {} raw products for category {} ({} skipped and tracked)",
+                "PROGRESS: 100% {} | DONE! Processed {} items ({} skipped) in {}min | Products: {} | Variants: +{}/±{} | Prices: {}",
+                finalProgressBar,
                 processed,
-                category,
-                skipped);
+                skipped, 
+                totalTime / 60000,
+                newProductsCreated,
+                newVariantsCreated,
+                variantsUpdated,
+                pricesRecorded);
+        
+        if (processed > 0) {
+            logger.info("Average processing speed: {} items/sec", 
+                    String.format("%.2f", processed / (totalTime / 1000.0)));
+        }
+    }
+    
+    /**
+     * Create a text-based progress bar
+     */
+    private String createProgressBar(int percentage) {
+        int barLength = 20; // Length of the progress bar
+        int completedLength = (int)Math.round(percentage / (100.0 / barLength));
+        
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < barLength; i++) {
+            if (i < completedLength) {
+                sb.append("=");
+            } else if (i == completedLength) {
+                sb.append(">");
+            } else {
+                sb.append(" ");
+            }
+        }
+        sb.append("]");
+        
+        return sb.toString();
+    }
 
-        // Save the final description to the job
-        job.setDescription(resultDescription.toString());
-        jobRepository.save(job);
+    /**
+     * Record price history for a raw item using an existing variant
+     * This is used when we want to record price history without updating the variant itself
+     */
+    private void recordPriceHistoryForRawItem(ProductVariant variant, CrawlerRaw rawItem) {
+        // Use the crawl timestamp from the raw item
+        LocalDateTime recordTime = rawItem.getCreated();
+        if (recordTime == null) {
+            recordTime = LocalDateTime.now();
+        }
 
-        return processed;
+        LocalDateTime startOfDay = recordTime.toLocalDate().atStartOfDay();
+        LocalDateTime endOfDay = startOfDay.plusDays(1).minusNanos(1);
+        
+        // Check if there's already a price history entry for the day this item was crawled
+        List<PriceHistory> sameDayEntries = priceHistoryRepository
+                .findByVariantAndRecordedAtBetweenOrderByRecordedAtDesc(
+                        variant, startOfDay, endOfDay);
+        
+        if (!sameDayEntries.isEmpty()) {
+            // Only add a new entry if the price changed from the previous one
+            PriceHistory existingEntry = sameDayEntries.get(0);
+            
+            // Only update if the price information has changed
+            boolean priceInfoChanged = 
+                    !Objects.equals(existingEntry.getPrice(), rawItem.getPrice()) ||
+                    !Objects.equals(existingEntry.getOldPrice(), rawItem.getOldPrice()) ||
+                    !Objects.equals(existingEntry.getDiscount(), rawItem.getDiscount()) ||
+                    !Objects.equals(existingEntry.getPriceString(), rawItem.getPriceString());
+            
+            if (priceInfoChanged) {
+                // Create a new entry with the raw item's price and timestamp
+                PriceHistory history = new PriceHistory();
+                history.setVariant(variant);
+                history.setWebsite(variant.getWebsite());
+                history.setPrice(rawItem.getPrice());
+                history.setOldPrice(rawItem.getOldPrice());
+                history.setDiscount(rawItem.getDiscount());
+                history.setPriceString(rawItem.getPriceString());
+                history.setRecordedAt(recordTime);
+                
+                priceHistoryRepository.save(history);
+            }
+        } else {
+            // Create a new entry for this day
+            PriceHistory history = new PriceHistory();
+            history.setVariant(variant);
+            history.setWebsite(variant.getWebsite());
+            history.setPrice(rawItem.getPrice());
+            history.setOldPrice(rawItem.getOldPrice());
+            history.setDiscount(rawItem.getDiscount());
+            history.setPriceString(rawItem.getPriceString());
+            history.setRecordedAt(recordTime);
+            
+            priceHistoryRepository.save(history);
+        }
+    }
+
+    /**
+     * Simple class to track price processing results
+     */
+    private static class PriceProcessingResult {
+        boolean priceRecorded = false;
+        boolean newVariantCreated = false;
+        boolean variantUpdated = false;
+    }
+
+    /**
+     * Process an item specifically for its price data
+     * This is a lightweight version of processRawProduct that only updates price info
+     */
+    private PriceProcessingResult processItemForPrice(CrawlerRaw rawItem, Integer productId) {
+        PriceProcessingResult result = new PriceProcessingResult();
+        try {
+            // Find the product
+            Optional<Product> productOpt = productRepository.findById(productId);
+            if (productOpt.isEmpty()) {
+                logger.warn("Could not find product with ID {} for price processing", productId);
+                return result;
+            }
+            
+            Product product = productOpt.get();
+            CrawlerWebsite website = rawItem.getJob().getCrawlerWebsite();
+            String sourceUrl = rawItem.getLink();
+            
+            // Extract attributes
+            String color = textProcessor.extractColor(rawItem.getTitle());
+            String storageInfo = textProcessor.extractStorageInfo(rawItem.getTitle());
+            String property1 = "";
+            String categoryCode = extractCategory(rawItem.getConfigCode());
+            if (categoryCode.equalsIgnoreCase("smartphones")) {
+                property1 = textProcessor.extractRamInfo(rawItem.getTitle());
+            }
+            
+            // Find existing variant by URL
+            Optional<ProductVariant> existingVariantByUrl =
+                    productVariantRepository.findByProductAndSourceUrl(product, sourceUrl);
+
+            if (existingVariantByUrl.isPresent()) {
+                // Update existing variant
+                ProductVariant variant = existingVariantByUrl.get();
+                updateVariantPrice(variant, rawItem, result);
+                return result;
+            }
+            
+            // Find by attributes
+            List<ProductVariant> existingVariants = productVariantRepository.findByProduct(product);
+            
+            for (ProductVariant existingVariant : existingVariants) {
+                if (existingVariant.getWebsite().getCode().equals(website.getCode()) &&
+                        Objects.equals(existingVariant.getColor(), color) &&
+                        Objects.equals(existingVariant.getSize(), storageInfo) && 
+                        Objects.equals(existingVariant.getProperty1(), property1)) {
+                    
+                    existingVariant.setSourceUrl(sourceUrl); // Update URL
+                    updateVariantPrice(existingVariant, rawItem, result);
+                    return result;
+                }
+            }
+            
+            // Create new variant if no match found
+            ProductVariant variant = new ProductVariant();
+            variant.setProduct(product);
+            variant.setWebsite(website);
+            variant.setSourceUrl(sourceUrl);
+            variant.setTitle(rawItem.getTitle());
+            variant.setColor(color);
+            variant.setSize(storageInfo);
+            variant.setProperty1(property1);
+            variant.setPrice(rawItem.getPrice());
+            variant.setOldPrice(rawItem.getOldPrice());
+            variant.setDiscount(rawItem.getDiscount());
+            variant.setPriceString(rawItem.getPriceString());
+            variant.setRawProductId(rawItem.getId());
+            variant.setInStock(true);
+
+            ProductVariant savedVariant = productVariantRepository.save(variant);
+            result.newVariantCreated = true;
+            
+            // Always record price history for new variants
+            recordPriceHistory(savedVariant, rawItem);
+            result.priceRecorded = true;
+            
+            return result;
+        } catch (Exception e) {
+            logger.error("Error processing item {} for price: {}", rawItem.getId(), e.getMessage());
+            return result;
+        }
+    }
+    
+    /**
+     * Update variant price and record price history
+     */
+    private void updateVariantPrice(ProductVariant variant, CrawlerRaw rawItem, PriceProcessingResult result) {
+        // Check if there's any change in price data
+        boolean priceChanged = !Objects.equals(variant.getPrice(), rawItem.getPrice()) || 
+                            !Objects.equals(variant.getOldPrice(), rawItem.getOldPrice()) ||
+                            !Objects.equals(variant.getDiscount(), rawItem.getDiscount()) ||
+                            !Objects.equals(variant.getPriceString(), rawItem.getPriceString());
+                            
+        // Update price data
+        variant.setPrice(rawItem.getPrice());
+        variant.setOldPrice(rawItem.getOldPrice());
+        variant.setDiscount(rawItem.getDiscount());
+        variant.setPriceString(rawItem.getPriceString());
+        variant.setRawProductId(rawItem.getId());
+        variant.setInStock(true);
+        
+        ProductVariant savedVariant = productVariantRepository.save(variant);
+        result.variantUpdated = true;
+        
+        // Always record price history
+        recordPriceHistory(savedVariant, rawItem);
+        result.priceRecorded = true;
+    }
+    
+    /**
+     * Update variant price and record price history
+     * Overloaded method for backward compatibility
+     */
+    private void updateVariantPrice(ProductVariant variant, CrawlerRaw rawItem) {
+        updateVariantPrice(variant, rawItem, new PriceProcessingResult());
     }
 
     /**
@@ -300,6 +550,7 @@ public class ProductMatchingService {
         StringBuilder resultDescription = new StringBuilder();
         resultDescription.append("Processing all unmapped items\n\n");
 
+        // Get all unprocessed items without grouping
         List<CrawlerRaw> unprocessedItems = crawlerRawRepository.findByProcessedNullOrProcessedFalse();
 
         resultDescription.append("Found ").append(unprocessedItems.size())
@@ -312,35 +563,66 @@ public class ProductMatchingService {
         Map<String, Integer> categoryStats = new HashMap<>();
         Map<String, Integer> brandCounts = new HashMap<>();
         List<String> newProductNames = new ArrayList<>();
+        
+        // Group items by title for efficient processing
+        Map<String, List<CrawlerRaw>> itemsByTitle = unprocessedItems.stream()
+                .collect(Collectors.groupingBy(CrawlerRaw::getTitle));
+        
+        logger.info("Grouped {} raw items into {} unique titles for efficient processing", 
+                unprocessedItems.size(), itemsByTitle.size());
 
-        for (CrawlerRaw rawItem : unprocessedItems) {
+        // Process by title groups
+        for (Map.Entry<String, List<CrawlerRaw>> entry : itemsByTitle.entrySet()) {
+            String title = entry.getKey();
+            List<CrawlerRaw> itemsWithSameTitle = entry.getValue();
+            
             try {
-                // Extract category for statistics
-                String category = extractCategory(rawItem.getConfigCode());
-                categoryStats.put(category, categoryStats.getOrDefault(category, 0) + 1);
+                // Extract category for statistics from first item
+                String category = extractCategory(itemsWithSameTitle.get(0).getConfigCode());
+                categoryStats.put(category, categoryStats.getOrDefault(category, 0) + itemsWithSameTitle.size());
 
-                boolean mapped = processRawProduct(rawItem);
-                if (mapped) {
-                    processed++;
+                // Process the first item to establish product mapping
+                CrawlerRaw firstItem = itemsWithSameTitle.get(0);
+                boolean mapped = processRawProduct(firstItem);
+                
+                if (mapped && firstItem.getMatchedProductId() != null) {
+                    // Record the product for statistics (using first item)
+                    Optional<Product> product = productRepository.findById(firstItem.getMatchedProductId());
+                    if (product.isPresent()) {
+                        String productName = product.get().getName();
+                        if (product.get().getBrand() != null) {
+                            brandCounts.put(product.get().getBrand(),
+                                    brandCounts.getOrDefault(product.get().getBrand(), 0) + 1);
+                        }
 
-                    // Track the product that was mapped
-                    if (rawItem.getMatchedProductId() != null) {
-                        Optional<Product> product = productRepository.findById(rawItem.getMatchedProductId());
-                        if (product.isPresent()) {
-                            String productName = product.get().getName();
-                            if (product.get().getBrand() != null) {
-                                brandCounts.put(product.get().getBrand(),
-                                        brandCounts.getOrDefault(product.get().getBrand(), 0) + 1);
-                            }
-
-                            // Only add to the list for display if it's a new product
-                            if (!newProductNames.contains(productName)) {
-                                newProductNames.add(productName);
-                            }
+                        // Only add to the list for display if it's a new product
+                        if (!newProductNames.contains(productName)) {
+                            newProductNames.add(productName);
                         }
                     }
+                    
+                    // Process all other items with same title for their price data
+                    for (int i = 1; i < itemsWithSameTitle.size(); i++) {
+                        CrawlerRaw otherItem = itemsWithSameTitle.get(i);
+                        // Mark as processed and map to same product
+                        otherItem.setProcessed(true);
+                        otherItem.setMatchedProductId(firstItem.getMatchedProductId());
+                        crawlerRawRepository.save(otherItem);
+                        
+                        // Process the item for its price
+                        processItemForPrice(otherItem, firstItem.getMatchedProductId());
+                    }
+                    
+                    processed += itemsWithSameTitle.size();
                 } else {
-                    skipped++;
+                    // First item wasn't mappable, so skip all with same title
+                    skipped += itemsWithSameTitle.size();
+                    
+                    // Track the unmappable item
+                    trackUnmappableItem(
+                            firstItem,
+                            UnmappableItem.ReasonCode.OTHER,
+                            "Could not map item to product");
                 }
 
                 // Update job description periodically for progress tracking
@@ -356,22 +638,23 @@ public class ProductMatchingService {
                 }
             } catch (Exception e) {
                 logger.error(
-                        "Error processing raw product with id {}: {}",
-                        rawItem.getId(),
+                        "Error processing raw products with title {}: {}",
+                        title,
                         e.getMessage(),
                         e);
 
-                // Track the error
+                // Track the error for the first item in the group
+                CrawlerRaw firstItem = itemsWithSameTitle.get(0);
                 trackUnmappableItem(
-                        rawItem,
+                        firstItem,
                         UnmappableItem.ReasonCode.OTHER,
                         "Error processing: " + e.getMessage());
 
-                skipped++;
+                skipped += itemsWithSameTitle.size();
             }
         }
 
-        // Build final results summary
+        // Build final results summary (same as before)
         resultDescription.append("== RESULTS SUMMARY ==\n");
         resultDescription.append("Total processed: ").append(processed + skipped).append("\n");
         resultDescription.append("Successfully mapped: ").append(processed).append("\n");
@@ -427,6 +710,203 @@ public class ProductMatchingService {
         jobRepository.save(job);
 
         return processed;
+    }
+
+    /**
+     * Process items for a specific category with detailed results tracking
+     * Used by the job processor service
+     *
+     * @param category The product category code to process
+     * @param job The job object for tracking progress and results
+     * @return The number of newly mapped products
+     */
+    @Transactional
+    public int processItemsByCategory(String category, Job job) {
+        if (category == null || category.isEmpty()) {
+            throw new IllegalArgumentException("Category cannot be null or empty");
+        }
+
+        StringBuilder resultDescription = new StringBuilder();
+        resultDescription.append("Processing items for category: ").append(category).append("\n\n");
+
+        // Get all unprocessed items for category without grouping
+        List<CrawlerRaw> unprocessedItems = crawlerRawRepository.findByProcessedNullOrFalseAndConfigCodeContaining(category);
+
+        resultDescription.append("Found ").append(unprocessedItems.size())
+                .append(" unprocessed items\n\n");
+
+        logger.info(
+                "Found {} unprocessed raw products for category {}",
+                unprocessedItems.size(),
+                category);
+
+        int processed = 0;
+        int skipped = 0;
+        List<String> newProductNames = new ArrayList<>();
+        Map<String, Integer> brandCounts = new HashMap<>();
+        
+        // Group items by title for efficient processing
+        Map<String, List<CrawlerRaw>> itemsByTitle = unprocessedItems.stream()
+                .collect(Collectors.groupingBy(CrawlerRaw::getTitle));
+        
+        logger.info("Grouped {} raw items into {} unique titles for efficient processing", 
+                unprocessedItems.size(), itemsByTitle.size());
+
+        // Process by title groups
+        for (Map.Entry<String, List<CrawlerRaw>> entry : itemsByTitle.entrySet()) {
+            String title = entry.getKey();
+            List<CrawlerRaw> itemsWithSameTitle = entry.getValue();
+            
+            try {
+                // Process the first item to establish product mapping
+                CrawlerRaw firstItem = itemsWithSameTitle.get(0);
+                boolean mapped = processRawProduct(firstItem);
+                
+                if (mapped && firstItem.getMatchedProductId() != null) {
+                    // Track the product for reporting
+                    Optional<Product> product = productRepository.findById(firstItem.getMatchedProductId());
+                    if (product.isPresent()) {
+                        String productName = product.get().getName();
+                        if (product.get().getBrand() != null) {
+                            brandCounts.put(product.get().getBrand(),
+                                    brandCounts.getOrDefault(product.get().getBrand(), 0) + 1);
+                        }
+
+                        // Only add to the list for display if it's a new product
+                        if (!newProductNames.contains(productName)) {
+                            newProductNames.add(productName);
+                        }
+                    }
+                    
+                    // Process all other items with same title for their price data
+                    for (int i = 1; i < itemsWithSameTitle.size(); i++) {
+                        CrawlerRaw otherItem = itemsWithSameTitle.get(i);
+                        // Mark as processed and map to same product
+                        otherItem.setProcessed(true);
+                        otherItem.setMatchedProductId(firstItem.getMatchedProductId());
+                        crawlerRawRepository.save(otherItem);
+                        
+                        // Process the item for its price
+                        processItemForPrice(otherItem, firstItem.getMatchedProductId());
+                    }
+                    
+                    processed += itemsWithSameTitle.size();
+                } else {
+                    // First item wasn't mappable, so skip all with same title
+                    skipped += itemsWithSameTitle.size();
+                }
+
+                // Update job description periodically for progress tracking
+                if ((processed + skipped) % 50 == 0) {
+                    StringBuilder progressUpdate = new StringBuilder(resultDescription);
+                    progressUpdate.append("Progress: Processed ").append(processed + skipped)
+                            .append(" of ").append(unprocessedItems.size())
+                            .append(" (").append(processed).append(" mapped, ")
+                            .append(skipped).append(" skipped)\n");
+
+                    job.setDescription(progressUpdate.toString());
+                    jobRepository.save(job);
+                }
+            } catch (Exception e) {
+                logger.error(
+                        "Error processing raw products with title {}: {}",
+                        title,
+                        e.getMessage(),
+                        e);
+
+                skipped += itemsWithSameTitle.size();
+            }
+        }
+
+        // Build final results summary (same as before)
+        resultDescription.append("== RESULTS SUMMARY ==\n");
+        resultDescription.append("Total processed: ").append(processed + skipped).append("\n");
+        resultDescription.append("Successfully mapped: ").append(processed).append("\n");
+        resultDescription.append("Skipped/unmappable: ").append(skipped).append("\n\n");
+
+        // Add information about brands
+        if (!brandCounts.isEmpty()) {
+            resultDescription.append("== BRANDS SUMMARY ==\n");
+            brandCounts.entrySet().stream()
+                    .sorted((e1, e2) -> e2.getValue().compareTo(e1.getValue()))
+                    .forEach(entry ->
+                            resultDescription.append(entry.getKey()).append(": ")
+                                    .append(entry.getValue()).append("\n"));
+            resultDescription.append("\n");
+        }
+
+        // Add list of new products (limited to 100 to avoid huge descriptions)
+        if (!newProductNames.isEmpty()) {
+            resultDescription.append("== NEW PRODUCTS ==\n");
+            newProductNames.stream().limit(100).forEach(name ->
+                    resultDescription.append("- ").append(name).append("\n"));
+
+            if (newProductNames.size() > 100) {
+                resultDescription.append("... and ").append(newProductNames.size() - 100)
+                        .append(" more products\n");
+            }
+        }
+
+        logger.info(
+                "Completed processing {} raw products for category {} ({} skipped)",
+                processed,
+                category,
+                skipped);
+
+        // Save the final description to the job
+        job.setDescription(resultDescription.toString());
+        jobRepository.save(job);
+
+        return processed;
+    }
+
+    /**
+     * Record an error for a job in the job_error table
+     */
+    private void createJobError(Job job, String source, String category, Exception e) {
+        JobError error = new JobError();
+        error.setJob(job);
+        error.setSource(source);
+        error.setCategory(category);
+        error.setJobType("PRODUCT_MAPPING");
+        error.setError(e.getMessage());
+        error.setCreated(LocalDateTime.now());
+        jobErrorRepository.save(error);
+    }
+
+    /**
+     * Manual trigger method for API endpoints
+     * Updated to create and use a job entry
+     */
+    @Transactional
+    public void manualProcessUnprocessedItems() {
+        // Create a new job
+        Job job = new Job();
+        job.setStatus("Running");
+        job.setJobType("PRODUCT_MAPPING");
+        job.setCreated(LocalDateTime.now());
+        job.setCreatedBy("API");
+        job.setStartedAt(LocalDateTime.now());
+        job = jobRepository.save(job);
+
+        try {
+            processRawProductsForJob(job);
+
+            // Mark job as finished
+            job.setStatus("Finished");
+            job.setFinishedAt(LocalDateTime.now());
+            jobRepository.save(job);
+        } catch (Exception e) {
+            // Mark job as failed
+            job.setStatus("Failed");
+            job.setFinishedAt(LocalDateTime.now());
+            job.setErrorMessage(e.getMessage());
+            jobRepository.save(job);
+
+            // Record the error
+            createJobError(job, "system", "all", e);
+            throw e;
+        }
     }
 
     /**
@@ -531,10 +1011,218 @@ public class ProductMatchingService {
     }
 
     /**
+     * Process a single raw product
+     * Core method that handles the matching and mapping logic
+     */
+    @Transactional
+    public boolean processRawProduct(CrawlerRaw rawItem) {
+        // Skip if already processed
+        if (Boolean.TRUE.equals(rawItem.getProcessed())) {
+            return true;
+        }
+
+        // Extract category from config code (e.g., "domod.ba/smartphones" -> "smartphones")
+        String categoryCode = extractCategory(rawItem.getConfigCode());
+
+        // Clean and extract product info
+        String cleanedTitle = textProcessor.cleanTitle(rawItem.getTitle());
+        String brand = textProcessor.extractBrand(rawItem.getTitle());
+
+        // If no brand detected, try to extract it from the title and add it to registry
+        if (brand == null || brand.isEmpty()) {
+            logger.info("No brand detected from registry for product: {}", rawItem.getTitle());
+            
+            // Try to extract potential brand from title
+            String potentialBrand = extractPotentialBrandFromTitle(rawItem.getTitle());
+            
+            if (potentialBrand != null && !potentialBrand.isEmpty()) {
+                // First check if this word is already in the registry as a non-brand type
+                boolean isNonBrandType = productRegistryRepository.existsByRegistryKeyIgnoreCaseAndRegistryType(
+                        potentialBrand, ProductRegistry.RegistryType.COLOR) ||
+                        productRegistryRepository.existsByRegistryKeyIgnoreCaseAndRegistryType(
+                        potentialBrand, ProductRegistry.RegistryType.COMMON_WORD) ||
+                        productRegistryRepository.existsByRegistryKeyIgnoreCaseAndRegistryType(
+                        potentialBrand, ProductRegistry.RegistryType.NOT_BRAND);
+                
+                if (isNonBrandType) {
+                    logger.info("Potential brand '{}' is already in registry as a non-brand type, skipping", 
+                            potentialBrand);
+                } else {
+                    // Add potential brand to registry
+                    ProductRegistry registryEntry = new ProductRegistry();
+                    registryEntry.setRegistryType(ProductRegistry.RegistryType.BRAND);
+                    registryEntry.setRegistryKey(textProcessor.capitalizeFirstLetter(potentialBrand));
+                    registryEntry.setDescription("Auto-added from title analysis");
+                    registryEntry.setEnabled(true);
+                    
+                    try {
+                        productRegistryRepository.save(registryEntry);
+                        logger.info("Added new brand '{}' to registry from title", potentialBrand);
+                        
+                        // Refresh registry to include the new brand
+                        textProcessor.refreshRegistry();
+                        
+                        // Try to extract brand again with the updated registry
+                        brand = textProcessor.extractBrand(rawItem.getTitle());
+                        logger.info("Re-extracted brand after registry update: {}", brand);
+                    } catch (Exception e) {
+                        logger.error("Error adding potential brand '{}' to registry: {}", 
+                                potentialBrand, e.getMessage());
+                    }
+                }
+            }
+            
+            // Quick check for similar mapped products (with timeout/limits)
+            if (brand == null || brand.isEmpty()) {
+                Optional<Product> similarMappedProduct =
+                        findSimilarMappedProductFast(rawItem, cleanedTitle, categoryCode);
+
+                if (similarMappedProduct.isPresent()) {
+                    Product matchedProduct = similarMappedProduct.get();
+                    brand = matchedProduct.getBrand(); // Use the brand from the matched product
+
+                    // Extract additional info for the variant
+                    String model = textProcessor.extractModel(rawItem.getTitle(), brand);
+                    String color = textProcessor.extractColor(rawItem.getTitle());
+                    String storageInfo = textProcessor.extractStorageInfo(rawItem.getTitle());
+                    String property1 = "";
+                    if (categoryCode.equalsIgnoreCase("smartphones")) {
+                        property1 = textProcessor.extractRamInfo(rawItem.getTitle());
+                    }
+
+                    logger.info(
+                            "Found similar mapped product with brand '{}': {}",
+                            brand,
+                            matchedProduct.getName());
+
+                    // Add as variant to the matched product
+                    addVariantToProduct(matchedProduct, rawItem, color, storageInfo, property1);
+                    
+                    // Update all items with the same title
+                    updateAllItemsWithSameTitle(rawItem.getTitle(), matchedProduct.getId());
+                    
+                    return true;
+                } else {
+                    // If we can't establish a brand, don't mark as processed
+                    // This allows future processing attempts when registry is updated
+                    logger.info("Unable to map item without brand. Item will remain unprocessed: {}", 
+                            rawItem.getTitle());
+                    return false;
+                }
+            }
+        }
+
+        // Continue with normal processing if we have a brand
+        String model = textProcessor.extractModel(rawItem.getTitle(), brand);
+        String color = textProcessor.extractColor(rawItem.getTitle());
+        String storageInfo = textProcessor.extractStorageInfo(rawItem.getTitle());
+        String property1 = "";
+        if (categoryCode.equalsIgnoreCase("smartphones")) {
+            property1 = textProcessor.extractRamInfo(rawItem.getTitle());
+        }
+
+        // Find potential matching products
+        List<Product> candidates = findCandidateProducts(brand, model, categoryCode);
+
+        Product bestMatch = null;
+        double highestSimilarity = 0;
+
+        // Limit the number of candidates we check for performance
+        int candidatesToCheck = Math.min(candidates.size(), MAX_CANDIDATES_TO_CHECK);
+
+        // Find best match among candidates
+        for (int i = 0; i < candidatesToCheck; i++) {
+            Product candidate = candidates.get(i);
+            double similarity = calculateProductSimilarity(candidate, brand, model, cleanedTitle);
+
+            if (similarity > SIMILARITY_THRESHOLD && similarity > highestSimilarity) {
+                highestSimilarity = similarity;
+                bestMatch = candidate;
+            }
+        }
+
+        // Either add as variant to existing product or create new product
+        if (bestMatch != null) {
+            addVariantToProduct(bestMatch, rawItem, color, storageInfo, property1);
+            // Update all items with the same title
+            updateAllItemsWithSameTitle(rawItem.getTitle(), bestMatch.getId());
+        } else {
+            // Before creating a new product, check for exact brand and model match
+            // This helps prevent duplicates created during the same processing batch
+            Product existingProduct = findExactBrandModelMatch(brand, model);
+            
+            if (existingProduct != null) {
+                // Use the existing product instead of creating a new one
+                logger.info("Found existing product with exact brand/model match: {} {}", brand, model);
+                addVariantToProduct(existingProduct, rawItem, color, storageInfo, property1);
+                updateAllItemsWithSameTitle(rawItem.getTitle(), existingProduct.getId());
+            } else {
+                // No duplicate found, create new product
+                Product newProduct = createNewProduct(rawItem, cleanedTitle, brand, model, categoryCode);
+                addVariantToProduct(newProduct, rawItem, color, storageInfo, property1);
+                updateAllItemsWithSameTitle(rawItem.getTitle(), newProduct.getId());
+
+                // Log that we created a new product
+                logger.info(
+                        "Created new product for '{}' with brand '{}'",
+                        rawItem.getTitle(),
+                        brand);
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Find a product with exact brand and model match
+     * This is a stricter check than similarity matching to prevent duplicates
+     */
+    private Product findExactBrandModelMatch(String brand, String model) {
+        if (brand == null || model == null || brand.isEmpty() || model.isEmpty()) {
+            return null;
+        }
+        
+        // First try exact case-insensitive match
+        List<Product> exactMatches = productRepository.findByBrandIgnoreCaseAndModelIgnoreCase(brand, model);
+        if (!exactMatches.isEmpty()) {
+            return exactMatches.get(0);
+        }
+        
+        // Try with normalized model (removing spaces, converting to lowercase)
+        String normalizedModel = model.replaceAll("\\s+", "").toLowerCase();
+        
+        // Get products with the same brand
+        List<Product> sameProducts = productRepository.findByBrandIgnoreCase(brand);
+        
+        // Look for normalized model match
+        for (Product product : sameProducts) {
+            if (product.getModel() != null) {
+                String productNormalizedModel = product.getModel().replaceAll("\\s+", "").toLowerCase();
+                
+                // Check for exact normalized match or models that just differ by a + character
+                if (normalizedModel.equals(productNormalizedModel) || 
+                    normalizedModel.equals(productNormalizedModel + "+") ||
+                    (normalizedModel + "+").equals(productNormalizedModel)) {
+                    return product;
+                }
+            }
+        }
+        
+        return null;
+    }
+
+    /**
      * Find potential matching products based on brand and model
      */
     private List<Product> findCandidateProducts(String brand, String model, String categoryCode) {
         List<Product> candidates = new ArrayList<>();
+
+        // First try exact brand/model match to avoid duplicates
+        Product exactMatch = findExactBrandModelMatch(brand, model);
+        if (exactMatch != null) {
+            candidates.add(exactMatch);
+            return candidates;
+        }
 
         // First try exact brand match
         if (brand != null && !brand.isEmpty()) {
@@ -607,40 +1295,173 @@ public class ProductMatchingService {
         CrawlerWebsite website = rawItem.getJob().getCrawlerWebsite();
         String sourceUrl = rawItem.getLink();
 
-        Optional<ProductVariant> existingVariant =
+        // First check if we already have this exact URL
+        Optional<ProductVariant> existingVariantByUrl =
                 productVariantRepository.findByProductAndSourceUrl(product, sourceUrl);
 
-        if (existingVariant.isPresent()) {
-            // Update existing variant
-            ProductVariant variant = existingVariant.get();
-
-            // Update price and other info that might change
+        if (existingVariantByUrl.isPresent()) {
+            // Update existing variant with the same URL
+            ProductVariant variant = existingVariantByUrl.get();
+            
+            // Check if there's any change in price data before updating
+            boolean priceChanged = !Objects.equals(variant.getPrice(), rawItem.getPrice()) || 
+                                !Objects.equals(variant.getOldPrice(), rawItem.getOldPrice()) ||
+                                !Objects.equals(variant.getDiscount(), rawItem.getDiscount()) ||
+                                !Objects.equals(variant.getPriceString(), rawItem.getPriceString());
+            
+            if (priceChanged) {
+                logger.debug("Price changed for variant {}: {} -> {}", 
+                        variant.getId(), variant.getPrice(), rawItem.getPrice());
+            }
+            
+            // Always update the variant with the latest data
             variant.setPrice(rawItem.getPrice());
             variant.setOldPrice(rawItem.getOldPrice());
             variant.setDiscount(rawItem.getDiscount());
             variant.setPriceString(rawItem.getPriceString());
+            variant.setInStock(true); // Default to in-stock for fresh data
+            
+            ProductVariant savedVariant = productVariantRepository.save(variant);
+            
+            // Always record price history for each crawler run
+            // The recordPriceHistory method will handle updates for the same day
+            recordPriceHistory(savedVariant, rawItem);
+            
+            logger.debug("Updated existing variant {} from {} with price {}",
+                    variant.getId(), website.getName(), rawItem.getPrice());
+            
+            return;
+        }
 
-            productVariantRepository.save(variant);
+        // If no exact URL match, look for a variant with the same key attributes 
+        // (same website, color, storage, property1)
+        // This handles cases where the URL might have changed but it's the same variant
+        List<ProductVariant> existingVariants = productVariantRepository.findByProduct(product);
+        
+        for (ProductVariant existingVariant : existingVariants) {
+            if (existingVariant.getWebsite().getCode().equals(website.getCode()) &&
+                    Objects.equals(existingVariant.getColor(), color) &&
+                    Objects.equals(existingVariant.getSize(), storageInfo) && 
+                    Objects.equals(existingVariant.getProperty1(), property1)) {
+                
+                // Check if there's any change in price data
+                boolean priceChanged = !Objects.equals(existingVariant.getPrice(), rawItem.getPrice()) || 
+                                    !Objects.equals(existingVariant.getOldPrice(), rawItem.getOldPrice()) ||
+                                    !Objects.equals(existingVariant.getDiscount(), rawItem.getDiscount()) ||
+                                    !Objects.equals(existingVariant.getPriceString(), rawItem.getPriceString());
+                
+                if (priceChanged) {
+                    logger.debug("Price changed for variant {}: {} -> {}", 
+                            existingVariant.getId(), existingVariant.getPrice(), rawItem.getPrice());
+                }
+                
+                // Always update the variant with the latest data
+                existingVariant.setSourceUrl(sourceUrl); // Update with new URL
+                existingVariant.setPrice(rawItem.getPrice());
+                existingVariant.setOldPrice(rawItem.getOldPrice());
+                existingVariant.setDiscount(rawItem.getDiscount());
+                existingVariant.setPriceString(rawItem.getPriceString());
+                existingVariant.setTitle(rawItem.getTitle()); // Update title in case it changed
+                existingVariant.setRawProductId(rawItem.getId());
+                existingVariant.setInStock(true);
+                
+                ProductVariant savedVariant = productVariantRepository.save(existingVariant);
+                
+                // Always record price history for each crawler run
+                // The recordPriceHistory method will handle updates for the same day
+                recordPriceHistory(savedVariant, rawItem);
+                
+                logger.debug("Updated matching variant {} from {} with new URL and price {}",
+                        existingVariant.getId(), website.getName(), rawItem.getPrice());
+                
+                return;
+            }
+        }
+
+        // Create new variant if no match found
+        logger.debug("Creating new variant for product {} from website {}", 
+                product.getId(), website.getName());
+                
+        ProductVariant variant = new ProductVariant();
+        variant.setProduct(product);
+        variant.setWebsite(website);
+        variant.setSourceUrl(sourceUrl);
+        variant.setTitle(rawItem.getTitle());
+        variant.setColor(color);
+
+        // Set the storage info as size for smartphones
+        variant.setSize(storageInfo);
+        variant.setProperty1(property1);
+
+        variant.setPrice(rawItem.getPrice());
+        variant.setOldPrice(rawItem.getOldPrice());
+        variant.setDiscount(rawItem.getDiscount());
+        variant.setPriceString(rawItem.getPriceString());
+        variant.setRawProductId(rawItem.getId());
+        variant.setInStock(true);
+
+        ProductVariant savedVariant = productVariantRepository.save(variant);
+        
+        // Always record price history for new variants
+        recordPriceHistory(savedVariant, rawItem);
+        
+        logger.debug("Created new variant {} for product {} from {} with price {}",
+                savedVariant.getId(), product.getId(), website.getName(), rawItem.getPrice());
+    }
+    
+    /**
+     * Record price history for a variant
+     * Creates one entry per day per variant, while preserving historical data
+     * Uses the crawler raw item's actual creation timestamp
+     */
+    private void recordPriceHistory(ProductVariant variant, CrawlerRaw rawItem) {
+        // Use the crawl timestamp from the raw item
+        LocalDateTime recordTime = rawItem.getCreated();
+        if (recordTime == null) {
+            recordTime = LocalDateTime.now();
+        }
+
+        LocalDateTime startOfDay = recordTime.toLocalDate().atStartOfDay();
+        LocalDateTime endOfDay = startOfDay.plusDays(1).minusNanos(1);
+        
+        // Check if there's already a price history entry for the day this item was crawled
+        List<PriceHistory> sameDeysEntries = priceHistoryRepository
+                .findByVariantAndRecordedAtBetweenOrderByRecordedAtDesc(
+                        variant, startOfDay, endOfDay);
+        
+        if (!sameDeysEntries.isEmpty()) {
+            // Update the existing entry for that day
+            PriceHistory existingEntry = sameDeysEntries.get(0);
+            
+            // Only update if the price information has changed
+            boolean priceInfoChanged = 
+                    !Objects.equals(existingEntry.getPrice(), variant.getPrice()) ||
+                    !Objects.equals(existingEntry.getOldPrice(), variant.getOldPrice()) ||
+                    !Objects.equals(existingEntry.getDiscount(), variant.getDiscount()) ||
+                    !Objects.equals(existingEntry.getPriceString(), variant.getPriceString());
+            
+            if (priceInfoChanged) {
+                existingEntry.setPrice(variant.getPrice());
+                existingEntry.setOldPrice(variant.getOldPrice());
+                existingEntry.setDiscount(variant.getDiscount());
+                existingEntry.setPriceString(variant.getPriceString());
+                // Update to the original crawl time
+                existingEntry.setRecordedAt(recordTime);
+                
+                priceHistoryRepository.save(existingEntry);
+            }
         } else {
-            // Create new variant
-            ProductVariant variant = new ProductVariant();
-            variant.setProduct(product);
-            variant.setWebsite(website);
-            variant.setSourceUrl(sourceUrl);
-            variant.setTitle(rawItem.getTitle());
-            variant.setColor(color);
-
-            // Set the storage info as size for smartphones
-            variant.setSize(storageInfo);
-            variant.setProperty1(property1);
-
-            variant.setPrice(rawItem.getPrice());
-            variant.setOldPrice(rawItem.getOldPrice());
-            variant.setDiscount(rawItem.getDiscount());
-            variant.setPriceString(rawItem.getPriceString());
-            variant.setRawProductId(rawItem.getId());
-
-            productVariantRepository.save(variant);
+            // Create a new entry for this day
+            PriceHistory history = new PriceHistory();
+            history.setVariant(variant);
+            history.setWebsite(variant.getWebsite());
+            history.setPrice(variant.getPrice());
+            history.setOldPrice(variant.getOldPrice());
+            history.setDiscount(variant.getDiscount());
+            history.setPriceString(variant.getPriceString());
+            history.setRecordedAt(recordTime);
+            
+            priceHistoryRepository.save(history);
         }
     }
 
@@ -900,11 +1721,24 @@ public class ProductMatchingService {
 
             // Check if brand already exists in registry
             String normalizedBrand = brand.trim();
-            boolean exists = productRegistryRepository.existsByRegistryKeyIgnoreCaseAndRegistryType(
+            boolean existsAsBrand = productRegistryRepository.existsByRegistryKeyIgnoreCaseAndRegistryType(
                     normalizedBrand, ProductRegistry.RegistryType.BRAND);
 
-            if (exists) {
+            if (existsAsBrand) {
                 logger.info("Brand '{}' already exists in registry", normalizedBrand);
+                continue;
+            }
+            
+            // Check if this word is already in the registry as a non-brand type
+            boolean isNonBrandType = productRegistryRepository.existsByRegistryKeyIgnoreCaseAndRegistryType(
+                    normalizedBrand, ProductRegistry.RegistryType.COLOR) ||
+                    productRegistryRepository.existsByRegistryKeyIgnoreCaseAndRegistryType(
+                    normalizedBrand, ProductRegistry.RegistryType.COMMON_WORD) ||
+                    productRegistryRepository.existsByRegistryKeyIgnoreCaseAndRegistryType(
+                    normalizedBrand, ProductRegistry.RegistryType.NOT_BRAND);
+            
+            if (isNonBrandType) {
+                logger.info("Word '{}' exists in registry as a non-brand type, skipping", normalizedBrand);
                 continue;
             }
 
@@ -942,128 +1776,76 @@ public class ProductMatchingService {
     }
 
     /**
-     * Process a single raw product
-     * Core method that handles the matching and mapping logic
+     * Extracts a potential brand from the title by using heuristics
+     * This is used when no brand was found in the registry
      */
-    @Transactional
-    public boolean processRawProduct(CrawlerRaw rawItem) {
-        // Skip if already processed
-        if (Boolean.TRUE.equals(rawItem.getProcessed())) {
-            return true;
+    private String extractPotentialBrandFromTitle(String title) {
+        if (title == null || title.isEmpty()) {
+            return null;
         }
-
-        // Extract category from config code (e.g., "domod.ba/smartphones" -> "smartphones")
-        String categoryCode = extractCategory(rawItem.getConfigCode());
-
-        // Clean and extract product info
-        String cleanedTitle = textProcessor.cleanTitle(rawItem.getTitle());
-        String brand = textProcessor.extractBrand(rawItem.getTitle());
-
-        // Fast path: if no brand, check a limited set of similar items and then track as unmappable
-        if (brand == null || brand.isEmpty()) {
-            logger.info("No brand detected from registry for product: {}", rawItem.getTitle());
-
-            // Quick check for similar mapped products (with timeout/limits)
-            Optional<Product> similarMappedProduct =
-                    findSimilarMappedProductFast(rawItem, cleanedTitle, categoryCode);
-
-            if (similarMappedProduct.isPresent()) {
-                Product matchedProduct = similarMappedProduct.get();
-                brand = matchedProduct.getBrand(); // Use the brand from the matched product
-
-                // Extract additional info for the variant
-                String model = textProcessor.extractModel(rawItem.getTitle(), brand);
-                String color = textProcessor.extractColor(rawItem.getTitle());
-                String storageInfo = textProcessor.extractStorageInfo(rawItem.getTitle());
-                String property1 = "";
-                if (categoryCode.equalsIgnoreCase("smartphones")) {
-                    property1 = textProcessor.extractRamInfo(rawItem.getTitle());
+        
+        String cleanedTitle = textProcessor.cleanTitle(title);
+        String[] words = cleanedTitle.split("\\s+");
+        
+        if (words.length > 0) {
+            // First word is often the brand in product titles
+            String firstWord = words[0].trim();
+            
+            // Basic validation - brands are usually at least 2 characters
+            // and don't start with numbers
+            if (firstWord.length() >= 2 && !Character.isDigit(firstWord.charAt(0))) {
+                return firstWord.toLowerCase();
+            }
+            
+            // If first word is very short or a number, try the second word
+            if (words.length > 1) {
+                String secondWord = words[1].trim();
+                if (secondWord.length() >= 2 && !Character.isDigit(secondWord.charAt(0))) {
+                    return secondWord.toLowerCase();
                 }
-
-                logger.info(
-                        "Found similar mapped product with brand '{}': {}",
-                        brand,
-                        matchedProduct.getName());
-
-                // Add as variant to the matched product
-                addVariantToProduct(matchedProduct, rawItem, color, storageInfo, property1);
-                rawItem.setMatchedProductId(matchedProduct.getId());
-                rawItem.setProcessed(true);
-
-                // Remove from unmappable items if previously added
-                unmappableItemRepository.findById(rawItem.getId())
-                        .ifPresent(unmappableItemRepository::delete);
-
-                return true;
-            } else {
-                // Track the unmappable item with reason but MARK AS PROCESSED
-                trackUnmappableItem(
-                        rawItem,
-                        UnmappableItem.ReasonCode.MISSING_BRAND,
-                        "No brand found in registry and no similar products found");
-
-                // Mark as processed even though it couldn't be mapped
-                rawItem.setProcessed(true);
-                return false;
             }
         }
+        
+        return null;
+    }
 
-        // Continue with normal processing if we have a brand
-        String model = textProcessor.extractModel(rawItem.getTitle(), brand);
-        String color = textProcessor.extractColor(rawItem.getTitle());
-        String storageInfo = textProcessor.extractStorageInfo(rawItem.getTitle());
-        String property1 = "";
-        if (categoryCode.equalsIgnoreCase("smartphones")) {
-            property1 = textProcessor.extractRamInfo(rawItem.getTitle());
+    /**
+     * Update all raw items with the same title to be processed and mapped to the same product
+     * @param title The title to match
+     * @param productId The product ID to set
+     */
+    private void updateAllItemsWithSameTitle(String title, Integer productId) {
+        if (title == null || title.isEmpty() || productId == null) {
+            return;
         }
-
-        // Find potential matching products
-        List<Product> candidates = findCandidateProducts(brand, model, categoryCode);
-
-        Product bestMatch = null;
-        double highestSimilarity = 0;
-
-        // Limit the number of candidates we check for performance
-        int candidatesToCheck = Math.min(candidates.size(), MAX_CANDIDATES_TO_CHECK);
-
-        // Find best match among candidates
-        for (int i = 0; i < candidatesToCheck; i++) {
-            Product candidate = candidates.get(i);
-            double similarity = calculateProductSimilarity(candidate, brand, model, cleanedTitle);
-
-            if (similarity > SIMILARITY_THRESHOLD && similarity > highestSimilarity) {
-                highestSimilarity = similarity;
-                bestMatch = candidate;
-            }
+        
+        // In our new approach, we're handling items with the same title directly in the main process
+        // This method is now used only for backward compatibility with other code paths
+        List<CrawlerRaw> itemsWithSameTitle = crawlerRawRepository.findByTitle(title);
+        
+        // Skip items that are already processed to avoid redundant updates
+        List<CrawlerRaw> unprocessedItems = itemsWithSameTitle.stream()
+                .filter(item -> item.getProcessed() == null || !item.getProcessed())
+                .collect(Collectors.toList());
+                
+        if (unprocessedItems.isEmpty()) {
+            logger.debug("No additional unprocessed items found with title: {}", title);
+            return;
         }
-
-        // Either add as variant to existing product or create new product
-        if (bestMatch != null) {
-            addVariantToProduct(bestMatch, rawItem, color, storageInfo, property1);
-            rawItem.setMatchedProductId(bestMatch.getId());
-            rawItem.setProcessed(true);
-
-            // If this item was previously unmappable, remove it from the unmappable tracking
-            unmappableItemRepository.findById(rawItem.getId())
-                    .ifPresent(unmappableItemRepository::delete);
-        } else {
-            // No good match found - create a new product
-            Product newProduct = createNewProduct(rawItem, cleanedTitle, brand, model, categoryCode);
-            addVariantToProduct(newProduct, rawItem, color, storageInfo, property1);
-            rawItem.setMatchedProductId(newProduct.getId());
-            rawItem.setProcessed(true);
-
-            // Log that we created a new product
-            logger.info(
-                    "Created new product for '{}' with brand '{}'",
-                    rawItem.getTitle(),
-                    brand);
-
-            // If this item was previously unmappable, remove it from the unmappable tracking
-            unmappableItemRepository.findById(rawItem.getId())
-                    .ifPresent(unmappableItemRepository::delete);
+        
+        logger.debug("Marking {} additional items with title '{}' as processed and mapped to product {}",
+                unprocessedItems.size(), title, productId);
+        
+        int count = 0;
+        for (CrawlerRaw item : unprocessedItems) {
+            item.setProcessed(true);
+            item.setMatchedProductId(productId);
+            crawlerRawRepository.save(item);
+            count++;
         }
-
-        return true;
+        
+        if (count > 0) {
+            logger.debug("Updated {} additional items with title: {}", count, title);
+        }
     }
 }

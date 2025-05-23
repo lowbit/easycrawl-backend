@@ -12,6 +12,7 @@ public class ProductDTO {
     private BigDecimal lowestPrice;
     private BigDecimal highestPrice;
     private Integer storeCount;
+    private Boolean hasPriceHistory;
 
     // Getters and setters
     public Integer getId() {
@@ -84,5 +85,13 @@ public class ProductDTO {
 
     public void setStoreCount(Integer storeCount) {
         this.storeCount = storeCount;
+    }
+
+    public Boolean getHasPriceHistory() {
+        return hasPriceHistory;
+    }
+
+    public void setHasPriceHistory(Boolean hasPriceHistory) {
+        this.hasPriceHistory = hasPriceHistory;
     }
 }

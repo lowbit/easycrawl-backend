@@ -13,6 +13,7 @@ import org.springframework.data.repository.PagingAndSortingRepository;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -66,4 +67,6 @@ public interface ProductRepository extends CrudRepository<Product, Integer>,
     List<Product> findByBrandNotNullAndModelNotNull();
     @Query("SELECT DISTINCT p.brand FROM Product p WHERE p.brand IS NOT NULL")
     List<String> findDistinctBrands();
+
+    boolean existsByIdAndCreatedBefore(Integer id, LocalDateTime date);
 }

@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/product/registry")
@@ -72,7 +73,7 @@ public class ProductRegistryController {
         return ResponseEntity.ok("Registry cache refreshed");
     }
 
-    /** Bulk import registry entries */
+    /** Batch import registry entries */
     @PostMapping("/bulk-import")
     public ResponseEntity<String> bulkImport(@RequestBody List<ProductRegistry> registries) {
         productRegistryService.bulkImport(registries);
@@ -84,5 +85,27 @@ public class ProductRegistryController {
     public ResponseEntity<List<ProductRegistry>> bulkExport() {
         List<ProductRegistry> res = productRegistryService.bulkExport();
         return ResponseEntity.ok(res);
+    }
+    
+    /** Batch change registry type for multiple entries */
+    @PostMapping("/batch-change-type")
+    public ResponseEntity<String> batchChangeType(
+            @RequestBody Map<String, Object> request,
+            @RequestParam(defaultValue = "SYSTEM") String username) {
+        
+        List<Integer> ids = (List<Integer>) request.get("ids");
+        String targetType = (String) request.get("targetType");
+        
+        if (ids == null || targetType == null || ids.isEmpty()) {
+            return ResponseEntity.badRequest().body("Invalid request: ids and targetType are required");
+        }
+        
+        try {
+            ProductRegistry.RegistryType type = ProductRegistry.RegistryType.valueOf(targetType);
+            int updatedCount = productRegistryService.batchChangeType(username, ids, type);
+            return ResponseEntity.ok("Changed registry type to " + targetType + " for " + updatedCount + " entries");
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body("Invalid registry type: " + targetType);
+        }
     }
 }

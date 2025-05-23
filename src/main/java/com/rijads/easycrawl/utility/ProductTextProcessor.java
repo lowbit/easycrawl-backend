@@ -4,7 +4,6 @@ import com.rijads.easycrawl.model.ProductRegistry;
 import com.rijads.easycrawl.repository.ProductRegistryRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -17,8 +16,7 @@ import java.util.stream.Collectors;
 public class ProductTextProcessor {
     private static final Logger logger = LoggerFactory.getLogger(ProductTextProcessor.class);
 
-    @Autowired
-    private ProductRegistryRepository registryRepository;
+    private final ProductRegistryRepository registryRepository;
 
     // Cache the registry data
     private Set<String> knownBrands = new HashSet<>();
@@ -26,6 +24,10 @@ public class ProductTextProcessor {
     private Set<String> commonColors = new HashSet<>();
     private List<Pattern> storagePatterns = new ArrayList<>();
     private Set<String> brandModifiers = new HashSet<>();
+
+    public ProductTextProcessor(ProductRegistryRepository registryRepository) {
+        this.registryRepository = registryRepository;
+    }
 
     /**
      * Initialize on startup and refresh periodically
@@ -480,63 +482,5 @@ public class ProductTextProcessor {
         }
 
         return null;
-    }
-
-    /**
-     * Generates a standardized model name from extracted components
-     * to improve consistency across similar products
-     */
-    public String standardizeModelName(String brand, String extractedModel) {
-        if (brand == null || extractedModel == null) {
-            return extractedModel;
-        }
-
-        // Specific handling for common brands
-        if (brand.equalsIgnoreCase("samsung")) {
-            // Convert "Galaxy S21" to "S21", "Note 20" to "Note20", etc.
-            if (extractedModel.toLowerCase().contains("galaxy")) {
-                extractedModel = extractedModel.replaceAll("(?i)galaxy\\s+", "");
-            }
-
-            // Remove spaces between model letters and numbers (S 21 → S21)
-            extractedModel = extractedModel.replaceAll("([A-Za-z])\\s+(\\d+)", "$1$2");
-
-        } else if (brand.equalsIgnoreCase("apple") || brand.equalsIgnoreCase("iphone")) {
-            // Handle iPhone models - standardize to "iPhone 13" format
-            if (extractedModel.toLowerCase().contains("iphone")) {
-                // Format "iPhone13" to "iPhone 13"
-                extractedModel = extractedModel.replaceAll("(?i)iphone(\\d+)", "iPhone $1");
-
-                // Handle Pro/Max variants
-                for (String modifier : new String[]{"Pro", "Max", "Plus", "Mini"}) {
-                    if (extractedModel.contains(modifier) && !extractedModel.contains(" " + modifier)) {
-                        extractedModel = extractedModel.replace(modifier, " " + modifier);
-                    }
-                }
-            }
-        }
-
-        // General standardization
-        // Ensure consistent spacing around hyphens
-        extractedModel = extractedModel.replaceAll("\\s*-\\s*", "-");
-
-        // Make common modifiers consistent - capitalize first letter of each word
-        for (String modifier : brandModifiers) {
-            if (extractedModel.toLowerCase().contains(modifier)) {
-                // Find the modifier with any casing
-                Pattern modifierPattern = Pattern.compile(modifier, Pattern.CASE_INSENSITIVE);
-                Matcher matcher = modifierPattern.matcher(extractedModel);
-
-                // Replace with properly capitalized version
-                StringBuffer sb = new StringBuffer();
-                while (matcher.find()) {
-                    matcher.appendReplacement(sb, capitalizeFirstLetter(modifier));
-                }
-                matcher.appendTail(sb);
-                extractedModel = sb.toString();
-            }
-        }
-
-        return extractedModel;
     }
 }

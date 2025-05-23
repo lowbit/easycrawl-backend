@@ -6,7 +6,6 @@ import com.rijads.easycrawl.repository.JobErrorRepository;
 import com.rijads.easycrawl.repository.JobRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -17,19 +16,23 @@ import java.util.Map;
 public class JobProcessorService {
     private static final Logger logger = LoggerFactory.getLogger(JobProcessorService.class);
 
-    @Autowired
-    private JobRepository jobRepository;
-    @Autowired
-    private JobErrorRepository jobErrorRepository;
-    @Autowired
-    private ProductMatchingService productMatchingService;
-    @Autowired
-    private ProductCleanupService productCleanupService;
+    private final JobRepository jobRepository;
+    private final JobErrorRepository jobErrorRepository;
+    private final ProductMatchingService productMatchingService;
+    
+    public JobProcessorService(
+            JobRepository jobRepository,
+            JobErrorRepository jobErrorRepository,
+            ProductMatchingService productMatchingService) {
+        this.jobRepository = jobRepository;
+        this.jobErrorRepository = jobErrorRepository;
+        this.productMatchingService = productMatchingService;
+    }
 
     /**
      * Periodically check for and process non-crawler jobs
      */
-    @Scheduled(fixedRate = 60000) // Check every minute
+    @Scheduled(fixedRate = 5000)
     public void processJobs() {
         try {
             // First check for product mapping jobs
@@ -61,7 +64,7 @@ public class JobProcessorService {
                 if ("PRODUCT_MAPPING".equals(jobType)) {
                     resultDescription = processProductMappingJob(job);
                 } else if ("PRODUCT_CLEANUP".equals(jobType)) {
-                    resultDescription = processProductCleanupJob(job);
+                    resultDescription = "";
                 } else {
                     throw new IllegalArgumentException("Unsupported job type: " + jobType);
                 }
@@ -118,44 +121,6 @@ public class JobProcessorService {
         description.append("Results:\n");
         description.append("- New products mapped: ").append(newMappedProducts).append("\n");
         description.append("- Products updated: ").append(updatedProducts).append("\n");
-
-        return description.toString();
-    }
-
-    /**
-     * Process a product cleanup job and return a description of the results
-     */
-    private String processProductCleanupJob(Job job) {
-        StringBuilder description = new StringBuilder();
-
-        // Determine what to clean up based on parameters
-        String parameters = job.getParameters();
-
-        if (parameters == null || parameters.isEmpty() || parameters.contains("all")) {
-            description.append("Performing full product cleanup\n");
-
-            // Do names cleanup
-            Map<String, Object> nameResults = productCleanupService.updateProductNamesBasedOnRegistry();
-            int updatedCount = (int) nameResults.get("updatedCount");
-            description.append("- Products with updated names: ").append(updatedCount).append("\n");
-
-            // Do duplicate merging
-            Map<String, Object> mergeResults = productCleanupService.mergeProductDuplicates();
-            int mergedCount = (int) mergeResults.get("mergedCount");
-            description.append("- Duplicate products merged: ").append(mergedCount).append("\n");
-
-        } else if (parameters.contains("names")) {
-            description.append("Updating product names based on registry\n");
-            Map<String, Object> results = productCleanupService.updateProductNamesBasedOnRegistry();
-            int updatedCount = (int) results.get("updatedCount");
-            description.append("- Products with updated names: ").append(updatedCount).append("\n");
-
-        } else if (parameters.contains("duplicates")) {
-            description.append("Merging duplicate products\n");
-            Map<String, Object> results = productCleanupService.mergeProductDuplicates();
-            int mergedCount = (int) results.get("mergedCount");
-            description.append("- Duplicate products merged: ").append(mergedCount).append("\n");
-        }
 
         return description.toString();
     }

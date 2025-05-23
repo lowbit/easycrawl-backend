@@ -10,6 +10,7 @@ uniqueConstraints = @UniqueConstraint(columnNames = {"registry_type", "registry_
 public class ProductRegistry {
     public enum RegistryType {
         BRAND,
+        NOT_BRAND,
         COMMON_WORD,        // Common words to ignore
         COLOR,
         STORAGE_PATTERN     // Patterns for storage capacity

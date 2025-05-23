@@ -6,7 +6,6 @@ import com.rijads.easycrawl.utility.ProductTextProcessor;
 import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
@@ -18,9 +17,15 @@ import java.util.List;
 public class RegistryInitService {
     private static final Logger logger = LoggerFactory.getLogger(RegistryInitService.class);
 
-    @Autowired private ProductRegistryRepository registryRepository;
-
-    @Autowired private ProductTextProcessor textProcessor;
+    private final ProductRegistryRepository registryRepository;
+    private final ProductTextProcessor textProcessor;
+    
+    public RegistryInitService(
+            ProductRegistryRepository registryRepository,
+            ProductTextProcessor textProcessor) {
+        this.registryRepository = registryRepository;
+        this.textProcessor = textProcessor;
+    }
 
     @EventListener(ApplicationReadyEvent.class)
     @Transactional

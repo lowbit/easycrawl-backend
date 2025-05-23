@@ -19,6 +19,7 @@ public interface ProductMapper {
     @Mapping(target = "lowestPrice", ignore = true)
     @Mapping(target = "highestPrice", ignore = true)
     @Mapping(target = "storeCount", ignore = true)
+    @Mapping(target = "hasPriceHistory", ignore = true)
     @Mapping(target = "category", source = "category.name")
     ProductDTO toDto(Product product);
 
@@ -39,6 +40,10 @@ public interface ProductMapper {
                     .map(v->v.getWebsite().getCode())
                     .distinct()
                     .count());
+            
+            // Check if any variant has price history
+            productDTO.setHasPriceHistory(product.getVariants().stream()
+                    .anyMatch(v -> v.getPriceHistories() != null && !v.getPriceHistories().isEmpty()));
         }
     }
 
@@ -51,7 +56,18 @@ public interface ProductMapper {
 
     @Mapping(target = "websiteName", source = "website.name")
     @Mapping(target = "websiteCode", source = "website.code")
+    @Mapping(target = "hasPriceHistory", ignore = true)
+    @Mapping(target = "lastUpdated", expression = "java(variant.getModified() != null ? variant.getModified().toString() : null)")
     ProductVariantDTO variantToVariantDTO(ProductVariant variant);
+
+    @AfterMapping
+    default void setVariantPriceHistoryInfo(ProductVariant variant, @MappingTarget ProductVariantDTO variantDTO) {
+        if (variant.getPriceHistories() != null) {
+            variantDTO.setHasPriceHistory(!variant.getPriceHistories().isEmpty());
+        } else {
+            variantDTO.setHasPriceHistory(false);
+        }
+    }
 
     List<ProductVariantDTO> variantsToVariantDTOs(List<ProductVariant> variants);
 

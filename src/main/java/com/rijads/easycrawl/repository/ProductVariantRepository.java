@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.PagingAndSortingRepository;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -51,4 +52,32 @@ public interface ProductVariantRepository extends CrudRepository<ProductVariant,
      * Find all variants for a specific product
      */
     List<ProductVariant> findByProduct(Product product);
+
+    /**
+     * Delete all variants for a specific product
+     */
+    void deleteByProduct(Product product);
+
+    /**
+     * Find variants with the same title and website code
+     */
+    List<ProductVariant> findByTitleAndWebsiteCode(String title, String websiteCode);
+
+    /**
+     * Get unique title and website combinations for a product
+     */
+    @Query("SELECT DISTINCT new map(pv.title as title, pv.website.code as websiteCode) FROM ProductVariant pv WHERE pv.product.id = :productId")
+    List<java.util.Map<String, String>> findDistinctTitleAndWebsiteByProductId(@Param("productId") Integer productId);
+
+    /**
+     * Get unique website codes for a product
+     */
+    @Query("SELECT DISTINCT pv.website.code FROM ProductVariant pv WHERE pv.product.id = :productId")
+    List<String> findDistinctWebsiteCodesByProductId(@Param("productId") Integer productId);
+
+    /**
+     * Get unique titles for a product
+     */
+    @Query("SELECT DISTINCT pv.title FROM ProductVariant pv WHERE pv.product.id = :productId")
+    List<String> findDistinctTitlesByProductId(@Param("productId") Integer productId);
 }

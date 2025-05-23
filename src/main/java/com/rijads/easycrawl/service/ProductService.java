@@ -26,7 +26,6 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final ProductVariantRepository variantRepository;
     private final ProductMatchingService productMatchingService;
-    private final ProductCleanupService productCleanupService;
     private final JobService jobService;
     private final ProductMapper productMapper;
     private final ProductCategoryRepository repository;
@@ -35,14 +34,12 @@ public class ProductService {
             ProductRepository productRepository,
             ProductVariantRepository variantRepository,
             ProductMatchingService productMatchingService,
-            ProductCleanupService productCleanupService,
             JobService jobService,
             ProductMapper productMapper,
             ProductCategoryRepository repository) {
         this.productRepository = productRepository;
         this.variantRepository = variantRepository;
         this.productMatchingService = productMatchingService;
-        this.productCleanupService = productCleanupService;
         this.jobService = jobService;
         this.productMapper = productMapper;
         this.repository = repository;
